@@ -53,3 +53,47 @@ docker compose up --build
 
 This exposes the API on http://localhost:8000 with Redis reachable at the
 default `redis://redis:6379/0` URL configured for the app container.
+
+### Quick demo
+
+1) Start the stack:
+
+```bash
+docker compose up --build -d
+```
+
+2) Seed Redis with a contract value and sample 15-minute load profile for the
+last 20 days (defaults to `redis://localhost:6379/0` and UTC; override
+`--timezone` to match your local window rules):
+
+```bash
+python scripts/seed_demo.py --timezone Asia/Taipei
+```
+
+3) Submit a DR call using curl. The window below aligns with the seeded profile
+and accepted DR windows (16:00–20:00 local):
+
+```bash
+curl -X POST http://localhost:8000/dayDR \
+  -H "Content-Type: application/json" \
+  -d '{
+        "measure": "dayDR",
+        "capacityDR": 25,
+        "timespanDR": {
+          "start": "2024-06-12T08:00:00Z",
+          "end": "2024-06-12T12:00:00Z"
+        },
+        "timezone": "Asia/Taipei"
+      }'
+```
+
+Expected response (CBL derived from the seeded trough between 18:00–20:00 each
+day):
+
+```json
+{
+  "accepted": true,
+  "reason": null,
+  "cbl": 70.0
+}
+```
