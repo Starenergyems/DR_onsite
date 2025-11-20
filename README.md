@@ -150,6 +150,108 @@ Steps to run the demo:
 
 The response will include the computed `baseline_kw` along with intermediate details showing the baseline event‑window average, the historical adjustment average and the load‑adjustment factor.
 
+### `POST /dr/day-select/reward`
+
+Compute the **daily electricity‑fee deduction (回饋金)** for a given DR event.  This endpoint builds upon the CBL calculation and applies Taipower’s reward formula for the day‑select plan:
+
+1. Compute the CBL using the same logic as `/dr/day-select/cbl`.
+2. Determine the **actual reduction** as the difference between the CBL and the customer’s average demand during the event window (negative values are treated as zero).
+3. Calculate the **execution rate** `x` as `(actual reduction) / (committed reduction capacity)`.  Round `x` to one decimal place and cap it at 120%【740316401331464†L231-L235】.
+4. Determine the **reduction ratio** according to Taipower’s table:
+   - `x < 60%`: 0 (no reward)
+   - `60% ≤ x < 80%`: 0.8
+   - `80% ≤ x < 95%`: 1.0
+   - `x ≥ 95%`: 1.2【740316401331464†L243-L253】
+5. Choose the **tariff reduction rate** based on the event duration (2 hr → 2.47; 4 hr → 1.84; 6 hr → 1.69 NTD/kWh)【740316401331464†L255-L265】.
+6. Compute the reward: `committed_reduction_capacity × execution_rate × event_duration_hours × tariff_rate × reduction_ratio`【740316401331464†L231-L235】.
+
+Request fields:
+
+- `customer_id` – ID of the customer
+- `event_start` / `event_end` – start and end times of the DR event (must be 2, 4 or 6 hours apart)
+- `contract_capacity_kw` – the customer’s contract capacity (CBL2) used in the CBL calculation
+- `committed_capacity_kw` – the committed reduction capacity (約定抑低契約容量) used for the reward formula
+
+Example request:
+
+```bash
+curl -X POST http://localhost:18000/dr/day-select/reward \
+     -H "Content-Type: application/json" \
+     -d '{
+       "customer_id": "C001",
+       "event_start": "2025-07-01T16:00:00+08:00",
+       "event_end":   "2025-07-01T22:00:00+08:00",
+       "contract_capacity_kw": 120,
+       "committed_capacity_kw": 100
+     }'
+```
+
+Sample response (numbers will vary with your data):
+
+```json
+{
+  "customer_id": "C001",
+  "event_start": "2025-07-01T16:00:00+08:00",
+  "event_end": "2025-07-01T22:00:00+08:00",
+  "committed_capacity_kw": 100.0,
+  "cbl_kw": 99.91,
+  "actual_avg_kw": 89.35,
+  "actual_reduction_kw": 10.56,
+  "execution_rate": 0.1,
+  "reduction_ratio": 0.0,
+  "tariff_rate": 1.69,
+  "event_duration_hours": 6.0,
+  "reward_ntd": 0.0,
+  "baseline_source_days": [
+    "2025-06-03",
+    …
+  ],
+  "method": "day-select-reward-v1",
+  "detail": {
+    "cbl1_kw": 99.91,
+    "af_kw": 0.00,
+    "cbl1_plus_af_kw": 99.91,
+    "cbl2_kw": 120.0,
+    "cbl_kw": 99.91,
+    "hist_adjust_avg_kw": 99.89,
+    "today_adjust_avg_kw": 79.97,
+    "actual_avg_kw": 89.35,
+    "actual_reduction_kw": 10.56,
+    "execution_rate_ratio": 0.1,
+    "reduction_ratio": 0.0,
+    "tariff_rate": 1.69,
+    "event_duration_hours": 6.0,
+    "reward_ntd": 0.0
+  }
+}
+```
+
+## Variable Definitions
+
+The API responses include several fields and intermediate values.  Here is a concise definition of each key variable used in the CBL and reward calculations:
+
+- **`CBL1`** – The 20‑day average demand across the DR event’s time window【106788555196366†L136-L143】.
+- **`AF` (Load‑Adjustment Factor)** – The difference between the event‑day average demand in the 22:00–24:00 window and the 20‑day historical average of the same window【106788555196366†L141-L147】; if the difference is negative, it is treated as zero【106788555196366†L141-L147】.
+- **`CBL2`** – The participant’s **contract capacity** (經常契約容量).  The final baseline will not exceed this value【164418267621156†L24-L35】.
+- **`cbl_kw` (Final CBL)** – The **minimum** of `CBL1 + AF` and `CBL2`【164418267621156†L24-L35】.  This is the baseline used to determine the actual reduction.
+- **`cbl1_kw`, `af_kw`, `cbl1_plus_af_kw`, `cbl2_kw`** – Internal values returned in the `detail` field representing `CBL1`, `AF`, their sum, and the contract capacity, respectively.
+- **`hist_adjust_avg_kw`** – The 20‑day historical average demand during the 22:00–24:00 window (used to compute `AF`).
+- **`today_adjust_avg_kw`** – The event‑day average demand during the 22:00–24:00 window.
+- **`actual_avg_kw`** – The participant’s actual average demand during the event window.  It is used to compute the actual reduction.
+- **`actual_reduction_kw`** – The difference between `cbl_kw` and `actual_avg_kw`.  If this value is negative, it is set to zero (no reduction).
+- **`execution_rate` / `execution_rate_ratio`** – The ratio of `actual_reduction_kw` to the committed reduction capacity.  It is rounded to one decimal place and capped at **1.2 (120%)**【740316401331464†L231-L235】.
+- **`reduction_ratio`** – A multiplier applied to the reward.  According to Taipower’s rules, it takes values of **0**, **0.8**, **1.0**, or **1.2** depending on the execution rate【740316401331464†L243-L253】.
+- **`tariff_rate`** – The per‑kWh reward rate chosen based on the event duration: **2.47 NTD/kWh** for 2‑hour events, **1.84 NTD/kWh** for 4‑hour events, and **1.69 NTD/kWh** for 6‑hour events【740316401331464†L255-L265】.
+- **`event_duration_hours`** – The length of the DR event in hours (2, 4 or 6).
+- **`reward_ntd`** – The calculated daily electricity‑fee deduction (回饋金) in New Taiwan Dollars.  It is computed as:
+
+  \[\text{reward}\_\text{ntd} = \text{committed}\_\text{capacity}\_\text{kw} \times \text{execution}\_\text{rate} \times \text{event}\_\text{duration}\_\text{hours} \times \text{tariff}\_\text{rate} \times \text{reduction}\_\text{ratio}\]【740316401331464†L231-L235】.
+
+- **`customer_id`** – Identifier for a participant.  Meter data and DR events are grouped by this ID.
+- **`event_start` / `event_end`** – The start and end timestamps of the DR event (ISO 8601 with time zone).  The difference between them must be 2, 4 or 6 hours.
+- **`contract_capacity_kw`** – The participant’s contract capacity in kW (CBL2).  Affects the final baseline.
+- **`committed_capacity_kw`** – The participant’s **committed reduction capacity** (約定抑低契約容量) used to compute the execution rate and reward.
+
 ## Extending the Server
 
 The current implementation focuses solely on the 日選時段型 CBL calculation.  In a production system you may wish to extend the server with:
