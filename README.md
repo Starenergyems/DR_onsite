@@ -38,7 +38,7 @@ Place `main.py` at the root of your project, then start the development server w
 uvicorn main:app --reload
 ```
 
-The service will listen on `http://localhost:8000/` by default.  Swagger/OpenAPI documentation is automatically generated and can be viewed at `http://localhost:8000/docs`.
+The service will listen on `http://localhost:18000/` by default.  Swagger/OpenAPI documentation is automatically generated and can be viewed at `http://localhost:18000/docs`.
 
 ## API Endpoints
 
@@ -53,7 +53,7 @@ Upload a batch of 15‑minute metering records.  The request body must be JSON w
 Example request:
 
 ```bash
-curl -X POST http://localhost:8000/meter-data/batch \
+curl -X POST http://localhost:18000/meter-data/batch \
      -H "Content-Type: application/json" \
      --data @sample_meter_data.json
 ```
@@ -79,7 +79,7 @@ When called, the endpoint will:
 Example request:
 
 ```bash
-curl -X POST http://localhost:8000/dr/day-select/cbl \
+curl -X POST http://localhost:18000/dr/day-select/cbl \
      -H "Content-Type: application/json" \
      -d '{
          "customer_id": "C001",
@@ -130,7 +130,7 @@ Steps to run the demo:
 2. Upload the sample meter data:
 
    ```bash
-   curl -X POST http://localhost:8000/meter-data/batch \
+   curl -X POST http://localhost:18000/meter-data/batch \
         -H "Content-Type: application/json" \
         --data @sample_meter_data.json
    ```
@@ -138,7 +138,7 @@ Steps to run the demo:
 3. Request the CBL for the event (and provide the contract capacity):
 
    ```bash
-   curl -X POST http://localhost:8000/dr/day-select/cbl \
+   curl -X POST http://localhost:18000/dr/day-select/cbl \
         -H "Content-Type: application/json" \
         -d '{
           "customer_id": "C001",

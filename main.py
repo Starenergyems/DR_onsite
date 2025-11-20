@@ -255,4 +255,4 @@ def api_day_select_cbl(req: DaySelectCBLRequest):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", port=8000, host="0.0.0.0", reload=True)
+    uvicorn.run("main:app", port=18000, host="0.0.0.0", reload=True)

@@ -1,0 +1,15 @@
+version: '3.9'
+
+services:
+  dr_api:
+    build: .
+    # Map the container's port 18000 to the host's port 18000
+    ports:
+      - "18000:18000"
+    # Mount the current directory into the container for easier development
+    volumes:
+      - .:/app
+    # Set the working directory inside the container
+    working_dir: /app
+    # Restart policy (optional)
+    restart: unless-stopped
