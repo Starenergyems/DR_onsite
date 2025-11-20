@@ -1,0 +1,5 @@
+fastapi
+redis
+uvicorn
+
+pytest
