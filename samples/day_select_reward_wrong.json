@@ -1,4 +1,9 @@
 {
+  "customer_id": "C001",
+  "event_start": "2025-07-01T16:00:00+08:00",
+  "event_end": "2025-07-01T22:00:00+08:00",
+  "contract_capacity_kw": 120,
+  "committed_capacity_kw": 100,
   "records": [
     {
       "customer_id": "C001",
@@ -3199,11 +3204,6 @@
       "customer_id": "C001",
       "timestamp": "2025-06-03T23:45:00+08:00",
       "kw": 96.889
-    },
-    {
-      "customer_id": "C001",
-      "timestamp": "2025-07-01T16:00:00+08:00",
-      "kw": 84.641
     },
     {
       "customer_id": "C001",
