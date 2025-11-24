@@ -352,6 +352,26 @@ def _normalize_day_select_window(event_start: datetime, event_end: datetime, bat
     return start_dt, end_dt
 
 
+def _validate_day_select_event_window(event_start: datetime, event_end: datetime, batch_time_tariff: bool):
+    """Enforce event-day eligibility and allowed time windows per regulation."""
+    event_date = event_start.date()
+    if is_weekend(event_date) or is_off_peak_day(event_date):
+        raise HTTPException(400, "事件日期須為工作日且非離峰日")
+
+    if batch_time_tariff:
+        if event_start.time() != time(15, 30) or event_end.time() != time(21, 30):
+            raise HTTPException(400, "批次生產時間電價事件時段固定為 15:30-21:30")
+        return
+
+    allowed_slots = [
+        (time(18, 0), time(20, 0)),  # 2 小時
+        (time(16, 0), time(20, 0)),  # 4 小時
+        (time(16, 0), time(22, 0)),  # 6 小時
+    ]
+    if not any(event_start.time() == s and event_end.time() == e for s, e in allowed_slots):
+        raise HTTPException(400, "事件時段僅支援 18:00-20:00、16:00-20:00、16:00-22:00")
+
+
 def _ensure_full_window(records: List[MeterRecord], start_dt: datetime, end_dt: datetime, label: str):
     """Ensure every 15-minute slot within [start_dt, end_dt) is present."""
     if start_dt >= end_dt:
@@ -432,6 +452,8 @@ def compute_day_select_cbl(
             400,
             "事件日期不在日選期間（5月1日至10月31日）內",
         )
+
+    _validate_day_select_event_window(event_start, event_end, batch_time_tariff)
 
     customer_records = validate_customer_records(records, customer_id)
 
