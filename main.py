@@ -7,20 +7,30 @@ from schemas import (
     DaySelectReductionResponse,
     DaySelectRewardRequest,
     DaySelectRewardResponse,
+    DaySelectRequiredRequest,
+    DaySelectRequiredPreResponse,
+    DaySelectRequiredPostResponse,
     GuaranteedCBLRequest,
     GuaranteedCBLResponse,
     GuaranteedEventRequest,
     GuaranteedEventResponse,
     GuaranteedRewardRequest,
     GuaranteedRewardResponse,
+    GuaranteedRequiredRequest,
+    GuaranteedRequiredPreResponse,
+    GuaranteedRequiredPostResponse,
 )
 from services import (
     compute_day_select_cbl,
     compute_day_select_reduction,
     compute_day_select_reward,
+    build_day_select_required_windows,
+    build_day_select_required_windows_post,
     compute_guaranteed_cbl,
     compute_guaranteed_event,
     compute_guaranteed_reward,
+    build_guaranteed_required_windows,
+    build_guaranteed_required_windows_post,
 )
 from swagger_examples import (
     DAY_SELECT_CBL_ERROR_EXAMPLE,
@@ -32,6 +42,9 @@ from swagger_examples import (
     DAY_SELECT_REWARD_ERROR_EXAMPLE,
     DAY_SELECT_REWARD_RESPONSE_EXAMPLE,
     DAY_SELECT_REWARD_REQUEST_EXAMPLE,
+    DAY_SELECT_REQUIRED_RESPONSE_EXAMPLE,
+    DAY_SELECT_REQUIRED_REQUEST_EXAMPLE,
+    DAY_SELECT_REQUIRED_POST_RESPONSE_EXAMPLE,
     GUARANTEED_CBL_ERROR_EXAMPLE,
     GUARANTEED_CBL_RESPONSE_EXAMPLE,
     GUARANTEED_CBL_REQUEST_EXAMPLE,
@@ -41,6 +54,10 @@ from swagger_examples import (
     GUARANTEED_REWARD_ERROR_EXAMPLE,
     GUARANTEED_REWARD_RESPONSE_EXAMPLE,
     GUARANTEED_REWARD_REQUEST_EXAMPLE,
+    GUARANTEED_REQUIRED_RESPONSE_EXAMPLE,
+    GUARANTEED_REQUIRED_POST_RESPONSE_EXAMPLE,
+    GUARANTEED_REQUIRED_REQUEST_EXAMPLE_PRE,
+    GUARANTEED_REQUIRED_REQUEST_EXAMPLE_POST,
 )
 
 app = FastAPI(
@@ -184,4 +201,69 @@ def api_guaranteed_reward(req: GuaranteedRewardRequest = Body(..., example=GUARA
         committed_capacity_kw=req.committed_capacity_kw,
         basic_fee_rate=req.basic_fee_rate,
         flow_fee_rate=req.flow_fee_rate,
+    )
+
+
+@app.post(
+    "/dr/day-select/required-records/pre",
+    response_model=DaySelectRequiredPreResponse,
+    responses={
+        200: {"description": "取得需求時間窗（事件前，用於 CBL 計算）", "content": {"application/json": {"example": DAY_SELECT_REQUIRED_RESPONSE_EXAMPLE}}},
+    },
+)
+def api_day_select_required_records_pre(req: DaySelectRequiredRequest = Body(..., example=DAY_SELECT_REQUIRED_REQUEST_EXAMPLE)):
+    return build_day_select_required_windows(
+        customer_id=req.customer_id,
+        event_start=req.event_start,
+        event_end=req.event_end,
+        batch_time_tariff=req.batch_time_tariff,
+        min_baseline_days=req.min_baseline_days,
+    )
+
+
+@app.post(
+    "/dr/day-select/required-records/post",
+    response_model=DaySelectRequiredPostResponse,
+    responses={
+        200: {"description": "取得需求時間窗（事件後，用於 reduction/reward）", "content": {"application/json": {"example": DAY_SELECT_REQUIRED_POST_RESPONSE_EXAMPLE}}},
+    },
+)
+def api_day_select_required_records_post(req: DaySelectRequiredRequest = Body(..., example=DAY_SELECT_REQUIRED_REQUEST_EXAMPLE)):
+    return build_day_select_required_windows_post(
+        customer_id=req.customer_id,
+        event_start=req.event_start,
+        event_end=req.event_end,
+        batch_time_tariff=req.batch_time_tariff,
+    )
+
+
+@app.post(
+    "/dr/guaranteed/required-records/pre",
+    response_model=GuaranteedRequiredPreResponse,
+    responses={
+        200: {"description": "取得需求時間窗（事件前，用於 CBL 計算）", "content": {"application/json": {"example": GUARANTEED_REQUIRED_RESPONSE_EXAMPLE}}},
+    },
+)
+def api_guaranteed_required_records_pre(req: GuaranteedRequiredRequest = Body(..., example=GUARANTEED_REQUIRED_REQUEST_EXAMPLE_PRE)):
+    return build_guaranteed_required_windows(
+        customer_id=req.customer_id,
+        event_start=req.event_start,
+        event_end=req.event_end,
+        notification_minutes_before=req.notification_minutes_before,
+    )
+
+
+@app.post(
+    "/dr/guaranteed/required-records/post",
+    response_model=GuaranteedRequiredPostResponse,
+    responses={
+        200: {"description": "取得需求時間窗（事件後，用於 reduction/reward）", "content": {"application/json": {"example": GUARANTEED_REQUIRED_POST_RESPONSE_EXAMPLE}}},
+    },
+)
+def api_guaranteed_required_records_post(req: GuaranteedRequiredRequest = Body(..., example=GUARANTEED_REQUIRED_REQUEST_EXAMPLE_POST)):
+    return build_guaranteed_required_windows_post(
+        customer_id=req.customer_id,
+        event_start=req.event_start,
+        event_end=req.event_end,
+        notification_minutes_before=req.notification_minutes_before,
     )

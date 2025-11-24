@@ -15,6 +15,11 @@ from schemas import (
     GuaranteedRewardEvent,
     GuaranteedRewardResponse,
     MeterRecord,
+    RequiredWindow,
+    DaySelectRequiredPreResponse,
+    DaySelectRequiredPostResponse,
+    GuaranteedRequiredPreResponse,
+    GuaranteedRequiredPostResponse,
 )
 
 # -------------------------
@@ -822,3 +827,109 @@ def compute_guaranteed_cbl(
         baseline_kw=baseline_kw,
         detail=detail,
     )
+
+
+def build_day_select_required_windows(
+    customer_id: str,
+    event_start: datetime,
+    event_end: datetime,
+    batch_time_tariff: bool = False,
+    min_baseline_days: int = 20,
+) -> DaySelectRequiredPreResponse:
+    event_start, event_end = _normalize_day_select_window(event_start, event_end, batch_time_tariff)
+    if event_end <= event_start:
+        raise HTTPException(400, "event_end 必須晚於 event_start")
+    event_date = event_start.date()
+    if not is_in_day_select_season(event_date):
+        raise HTTPException(400, "事件日期不在日選期間（5月1日至10月31日）內")
+    _validate_day_select_event_window(event_start, event_end, batch_time_tariff)
+
+    baseline_days: List[date] = []
+    current_day = event_date - timedelta(days=1)
+    searched = 0
+    search_limit = 90
+    while len(baseline_days) < min_baseline_days and searched < search_limit:
+        if (
+            not is_weekend(current_day)
+            and not is_off_peak_day(current_day)
+            and is_in_day_select_season(current_day)
+        ):
+            baseline_days.append(current_day)
+        current_day -= timedelta(days=1)
+        searched += 1
+    if len(baseline_days) < min_baseline_days:
+        raise HTTPException(400, f"資料不足以形成前 {min_baseline_days} 個合格日，只找到 {len(baseline_days)} 日")
+
+    windows: List[RequiredWindow] = []
+    event_start_t = event_start.time()
+    event_end_t = event_end.time()
+    adjust_start = time(22, 0)
+    adjust_end = time(0, 0)
+
+    for d in baseline_days:
+        start_dt, end_dt = _build_window_range(d, event_start_t, event_end_t)
+        windows.append(RequiredWindow(label=f"基準日 {d} 事件時段", start=start_dt, end=end_dt))
+        adj_start_dt, adj_end_dt = _build_window_range(d, adjust_start, adjust_end)
+        windows.append(RequiredWindow(label=f"基準日 {d} 22:00-24:00", start=adj_start_dt, end=adj_end_dt))
+
+    event_start_dt, event_end_dt = _build_window_range(event_date, event_start_t, event_end_t)
+    windows.append(RequiredWindow(label=f"事件日 {event_date} 事件時段", start=event_start_dt, end=event_end_dt))
+    adj_start_dt, adj_end_dt = _build_window_range(event_date, adjust_start, adjust_end)
+    windows.append(RequiredWindow(label=f"事件日 {event_date} 22:00-24:00", start=adj_start_dt, end=adj_end_dt))
+
+    return DaySelectRequiredPreResponse(customer_id=customer_id, baseline_days=sorted(baseline_days), windows=windows)
+
+
+def build_day_select_required_windows_post(
+    customer_id: str,
+    event_start: datetime,
+    event_end: datetime,
+    batch_time_tariff: bool = False,
+) -> DaySelectRequiredPostResponse:
+    event_start, event_end = _normalize_day_select_window(event_start, event_end, batch_time_tariff)
+    if event_end <= event_start:
+        raise HTTPException(400, "event_end 必須晚於 event_start")
+    _validate_day_select_event_window(event_start, event_end, batch_time_tariff)
+    event_date = to_taipei(event_start).date()
+    start_dt, end_dt = _build_window_range(event_date, event_start.time(), event_end.time())
+    windows = [RequiredWindow(label=f"事件日 {event_date} 事件時段", start=start_dt, end=end_dt)]
+    return DaySelectRequiredPostResponse(customer_id=customer_id, windows=windows)
+
+
+def build_guaranteed_required_windows(
+    customer_id: str,
+    event_start: datetime,
+    event_end: datetime,
+    notification_minutes_before: int,
+) -> GuaranteedRequiredPreResponse:
+    event_start = to_taipei(event_start)
+    event_end = to_taipei(event_end)
+    if event_end <= event_start:
+        raise HTTPException(400, "event_end 必須晚於 event_start")
+    _validate_guaranteed_event_window(event_start, event_end)
+    if notification_minutes_before not in (30, 60, 120):
+        raise HTTPException(400, "notification_minutes_before 必須為 30、60 或 120")
+    notification_time = event_start - timedelta(minutes=notification_minutes_before)
+    baseline_start = notification_time - timedelta(hours=2)
+    baseline_end = notification_time
+    windows = [
+        RequiredWindow(label="通知前 2 小時", start=baseline_start, end=baseline_end),
+    ]
+    return GuaranteedRequiredPreResponse(customer_id=customer_id, windows=windows)
+
+
+def build_guaranteed_required_windows_post(
+    customer_id: str,
+    event_start: datetime,
+    event_end: datetime,
+    notification_minutes_before: int,
+) -> GuaranteedRequiredPostResponse:
+    event_start = to_taipei(event_start)
+    event_end = to_taipei(event_end)
+    if event_end <= event_start:
+        raise HTTPException(400, "event_end 必須晚於 event_start")
+    _validate_guaranteed_event_window(event_start, event_end)
+    if notification_minutes_before not in (30, 60, 120):
+        raise HTTPException(400, "notification_minutes_before 必須為 30、60 或 120")
+    windows = [RequiredWindow(label="事件時段", start=event_start, end=event_end)]
+    return GuaranteedRequiredPostResponse(customer_id=customer_id, windows=windows)

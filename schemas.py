@@ -190,3 +190,55 @@ class GuaranteedCBLResponse(BaseModel):
     notification_minutes_before: int
     baseline_kw: float
     detail: Dict[str, Any]
+
+
+# 新增：需求視窗查詢
+class RequiredWindow(BaseModel):
+    label: str
+    start: datetime
+    end: datetime
+
+
+class DaySelectRequiredRequest(BaseModel):
+    customer_id: str
+    event_start: datetime
+    event_end: datetime
+    batch_time_tariff: bool = False
+    min_baseline_days: int = 20
+
+
+class DaySelectRequiredResponse(BaseModel):
+    customer_id: str
+    baseline_days: List[date]
+    windows: List[RequiredWindow]
+
+
+class GuaranteedRequiredRequest(BaseModel):
+    customer_id: str
+    event_start: datetime
+    event_end: datetime
+    notification_minutes_before: int
+
+
+class GuaranteedRequiredResponse(BaseModel):
+    customer_id: str
+    windows: List[RequiredWindow]
+
+
+# 新增：區分前/後階段需求
+class DaySelectRequiredPreResponse(DaySelectRequiredResponse):
+    pass
+
+
+class DaySelectRequiredPostResponse(BaseModel):
+    customer_id: str
+    windows: List[RequiredWindow]
+
+
+class GuaranteedRequiredPreResponse(GuaranteedRequiredResponse):
+    pass
+
+
+class GuaranteedRequiredPostResponse(BaseModel):
+    customer_id: str
+    windows: List[RequiredWindow]
