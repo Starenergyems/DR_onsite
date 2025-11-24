@@ -48,10 +48,12 @@ app = FastAPI(
     version="1.1.0",
     description=(
         "日選 DR API：提供基準用電 (CBL) 計算與回饋金試算。\n"
-        "- /dr/day-select/cbl：計算基準用電 (CBL)。\n"
-        "- /dr/day-select/reward：計算當日流動電費扣減 (回饋金)。"
-        "\n- /dr/guaranteed/event：計算保證反應型單次事件基準與實際抑低容量。"
-        "\n- /dr/guaranteed/reward：計算保證反應型月度電費扣減總額。"
+        "- /dr/day-select/cbl：計算日選方案基準用電 (CBL)。\n"
+        "- /dr/day-select/reward：計算日選方案回饋金。\n"
+        "- /dr/day-select/reduction：計算日選方案實際抑低容量。\n"
+        "- /dr/guaranteed/cbl：計算保證反應型基準用電 (CBL)。\n"
+        "- /dr/guaranteed/reduction：計算保證反應型單次事件實際抑低容量。\n"
+        "- /dr/guaranteed/reward：計算保證反應型月度電費扣減總額。"
     ),
 )
 
@@ -59,6 +61,7 @@ app = FastAPI(
 @app.post(
     "/dr/day-select/cbl",
     response_model=DaySelectCBLResponse,
+    description="計算日選方案事件期間的基準用電 (CBL) 與採樣基準日，需傳入客戶 15 分鐘需量紀錄。",
     responses={
         200: {"description": "計算成功", "content": {"application/json": {"example": DAY_SELECT_CBL_RESPONSE_EXAMPLE}}},
         400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_CBL_ERROR_EXAMPLE}}},
@@ -79,6 +82,7 @@ def api_day_select_cbl(req: DaySelectCBLRequest = Body(..., example=DAY_SELECT_C
 @app.post(
     "/dr/day-select/reward",
     response_model=DaySelectRewardResponse,
+    description="以日選 CBL 與實測需量計算單次事件的回饋金、實際抑低容量與執行率。",
     responses={
         200: {"description": "計算成功", "content": {"application/json": {"example": DAY_SELECT_REWARD_RESPONSE_EXAMPLE}}},
         400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_REWARD_ERROR_EXAMPLE}}},
@@ -100,6 +104,7 @@ def api_day_select_reward(req: DaySelectRewardRequest = Body(..., example=DAY_SE
 @app.post(
     "/dr/day-select/reduction",
     response_model=DaySelectReductionResponse,
+    description="回傳日選方案事件的 CBL、實際平均需量、抑低容量；若提供約定容量則一併計算執行率。",
     responses={
         200: {"description": "計算成功", "content": {"application/json": {"example": DAY_SELECT_REDUCTION_RESPONSE_EXAMPLE}}},
         400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_REDUCTION_ERROR_EXAMPLE}}},
@@ -121,6 +126,7 @@ def api_day_select_reduction(req: DaySelectReductionRequest = Body(..., example=
 @app.post(
     "/dr/guaranteed/cbl",
     response_model=GuaranteedCBLResponse,
+    description="依保證反應型規範與通知提前時間計算事件基準需量 (CBL)。",
     responses={
         200: {"description": "計算成功", "content": {"application/json": {"example": GUARANTEED_CBL_RESPONSE_EXAMPLE}}},
         400: {"description": "請求錯誤", "content": {"application/json": {"example": GUARANTEED_CBL_ERROR_EXAMPLE}}},
@@ -139,6 +145,7 @@ def api_guaranteed_cbl(req: GuaranteedCBLRequest = Body(..., example=GUARANTEED_
 @app.post(
     "/dr/guaranteed/reduction",
     response_model=GuaranteedEventResponse,
+    description="計算保證反應型單次事件的基準需量、實際抑低容量、執行率與流動/違約費用。",
     responses={
         200: {"description": "計算成功", "content": {"application/json": {"example": GUARANTEED_EVENT_RESPONSE_EXAMPLE}}},
         400: {"description": "請求錯誤", "content": {"application/json": {"example": GUARANTEED_EVENT_ERROR_EXAMPLE}}},
@@ -161,6 +168,7 @@ def api_guaranteed_reduction(req: GuaranteedEventRequest = Body(..., example=GUA
 @app.post(
     "/dr/guaranteed/reward",
     response_model=GuaranteedRewardResponse,
+    description="彙總本月所有保證反應型事件，計算基本電費與流動電費扣減、違約金與淨回饋。",
     responses={
         200: {"description": "計算成功", "content": {"application/json": {"example": GUARANTEED_REWARD_RESPONSE_EXAMPLE}}},
         400: {"description": "請求錯誤", "content": {"application/json": {"example": GUARANTEED_REWARD_ERROR_EXAMPLE}}},
