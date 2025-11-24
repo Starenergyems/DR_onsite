@@ -197,6 +197,7 @@ class RequiredWindow(BaseModel):
     label: str
     start: datetime
     end: datetime
+    optional: bool = False
 
 
 class DaySelectRequiredRequest(BaseModel):

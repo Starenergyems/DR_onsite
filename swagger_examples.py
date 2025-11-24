@@ -19,10 +19,12 @@ from services import (
     compute_day_select_reduction,
     compute_day_select_reward,
     build_day_select_required_windows,
+    build_day_select_required_windows_post,
     compute_guaranteed_cbl,
     compute_guaranteed_event,
     compute_guaranteed_reward,
     build_guaranteed_required_windows,
+    build_guaranteed_required_windows_post,
 )
 
 SAMPLES_DIR = Path(__file__).parent / "samples"
