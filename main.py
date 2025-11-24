@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, time, date
-from typing import List, Dict, Optional
+from decimal import Decimal, ROUND_HALF_UP
+from typing import List, Dict, Optional, Any
 
 import pytz
 from fastapi import FastAPI, HTTPException
@@ -160,7 +161,7 @@ class GuaranteedEventDetail(BaseModel):
     event_duration_hours: float
     flow_reduction_amount: float
     extra_charge_amount: float
-    detail: Dict[str, float]
+    detail: Dict[str, Any]
 
 
 class GuaranteedEventResponse(BaseModel):
@@ -174,7 +175,7 @@ class GuaranteedEventResponse(BaseModel):
     event_duration_hours: float
     flow_reduction_amount: float
     extra_charge_amount: float
-    detail: Dict[str, float]
+    detail: Dict[str, Any]
 
 
 class GuaranteedRewardEvent(BaseModel):
@@ -238,7 +239,7 @@ class GuaranteedCBLResponse(BaseModel):
     event_start: datetime
     notification_minutes_before: int
     baseline_kw: float
-    detail: Dict[str, float]
+    detail: Dict[str, Any]
 
 
 # -------------------------
@@ -506,6 +507,19 @@ def compute_day_select_cbl(
     # Final CBL: min(CBL1+AF, CBL2)
     final_cbl = cbl1_plus_af_kw if cbl1_plus_af_kw < cbl2_kw else cbl2_kw
 
+    detail = {
+        "cbl1_kw": cbl1_kw,
+        "af_kw": af_kw,
+        "cbl1_plus_af_kw": cbl1_plus_af_kw,
+        "cbl2_kw": cbl2_kw,
+        "cbl_kw": final_cbl,
+        "hist_adjust_avg_kw": hist_adjust_avg_kw,
+        "today_adjust_avg_kw": today_adjust_avg,
+    }
+    if assumed_adjust_used:
+        # Only expose the assumed average when it is explicitly provided to avoid None in detail
+        detail["assumed_today_adjust_avg_kw"] = assumed_today_adjust_avg_kw
+
     return DaySelectCBLResponse(
         customer_id=customer_id,
         event_start=event_start,
@@ -513,16 +527,7 @@ def compute_day_select_cbl(
         cbl_kw=final_cbl,
         baseline_source_days=sorted(baseline_days),
         method="day-select-cbl-v1",
-        detail={
-            "cbl1_kw": cbl1_kw,
-            "af_kw": af_kw,
-            "cbl1_plus_af_kw": cbl1_plus_af_kw,
-            "cbl2_kw": cbl2_kw,
-            "cbl_kw": final_cbl,
-            "hist_adjust_avg_kw": hist_adjust_avg_kw,
-            "today_adjust_avg_kw": today_adjust_avg,
-            "assumed_today_adjust_avg_kw": assumed_today_adjust_avg_kw if assumed_adjust_used else None,
-        },
+        detail=detail,
     )
 
 
@@ -838,9 +843,11 @@ def compute_guaranteed_event(
     if capacity_denom <= 0:
         raise HTTPException(400, "committed_capacity_kw (或 contract_capacity_kw) 必須大於 0")
 
-    exec_rate = actual_reduction_kw / capacity_denom
-    # 四捨五入小數一位並截 100%
-    exec_rate_rounded = min(round(exec_rate, 1), 1.0)
+    # 各次執行率＝(實際抑低容量 / 抑低契約容量)×100%，四捨五入到小數 1 位，再回到 0-1 比例，且上限 1.0
+    exec_rate_pct = (Decimal(actual_reduction_kw) / Decimal(capacity_denom) * Decimal(100)).quantize(
+        Decimal("0.1"), rounding=ROUND_HALF_UP
+    )
+    exec_rate_rounded = min(float(exec_rate_pct) / 100.0, 1.0)
 
     # 流動電費扣減
     flow_reduction_amount = 0.0
