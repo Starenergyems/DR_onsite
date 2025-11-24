@@ -161,6 +161,8 @@ def _validate_guaranteed_capacity(contract_capacity_kw: float, committed_capacit
     min_committed = max(1000.0, contract_capacity_kw * 0.15)
     if committed_capacity_kw < min_committed:
         raise HTTPException(400, f"約定抑低契約容量須達 1,000 瓩或經常契約容量的 15% 以上 (最低 {min_committed:.1f} 瓩)")
+    if committed_capacity_kw > contract_capacity_kw:
+        raise HTTPException(400, "約定抑低契約容量不可大於經常契約容量")
 
 
 def _validate_day_select_capacity(contract_capacity_kw: Optional[float], committed_capacity_kw: Optional[float] = None):

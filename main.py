@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Body
 
 from schemas import (
     DaySelectCBLRequest,
@@ -25,16 +25,22 @@ from services import (
 from swagger_examples import (
     DAY_SELECT_CBL_ERROR_EXAMPLE,
     DAY_SELECT_CBL_RESPONSE_EXAMPLE,
+    DAY_SELECT_CBL_REQUEST_EXAMPLE,
     DAY_SELECT_REDUCTION_ERROR_EXAMPLE,
     DAY_SELECT_REDUCTION_RESPONSE_EXAMPLE,
+    DAY_SELECT_REDUCTION_REQUEST_EXAMPLE,
     DAY_SELECT_REWARD_ERROR_EXAMPLE,
     DAY_SELECT_REWARD_RESPONSE_EXAMPLE,
+    DAY_SELECT_REWARD_REQUEST_EXAMPLE,
     GUARANTEED_CBL_ERROR_EXAMPLE,
     GUARANTEED_CBL_RESPONSE_EXAMPLE,
+    GUARANTEED_CBL_REQUEST_EXAMPLE,
     GUARANTEED_EVENT_ERROR_EXAMPLE,
     GUARANTEED_EVENT_RESPONSE_EXAMPLE,
+    GUARANTEED_EVENT_REQUEST_EXAMPLE,
     GUARANTEED_REWARD_ERROR_EXAMPLE,
     GUARANTEED_REWARD_RESPONSE_EXAMPLE,
+    GUARANTEED_REWARD_REQUEST_EXAMPLE,
 )
 
 app = FastAPI(
@@ -58,7 +64,7 @@ app = FastAPI(
         400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_CBL_ERROR_EXAMPLE}}},
     },
 )
-def api_day_select_cbl(req: DaySelectCBLRequest):
+def api_day_select_cbl(req: DaySelectCBLRequest = Body(..., example=DAY_SELECT_CBL_REQUEST_EXAMPLE)):
     return compute_day_select_cbl(
         customer_id=req.customer_id,
         event_start=req.event_start,
@@ -78,7 +84,7 @@ def api_day_select_cbl(req: DaySelectCBLRequest):
         400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_REWARD_ERROR_EXAMPLE}}},
     },
 )
-def api_day_select_reward(req: DaySelectRewardRequest):
+def api_day_select_reward(req: DaySelectRewardRequest = Body(..., example=DAY_SELECT_REWARD_REQUEST_EXAMPLE)):
     return compute_day_select_reward(
         customer_id=req.customer_id,
         event_start=req.event_start,
@@ -99,7 +105,7 @@ def api_day_select_reward(req: DaySelectRewardRequest):
         400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_REDUCTION_ERROR_EXAMPLE}}},
     },
 )
-def api_day_select_reduction(req: DaySelectReductionRequest):
+def api_day_select_reduction(req: DaySelectReductionRequest = Body(..., example=DAY_SELECT_REDUCTION_REQUEST_EXAMPLE)):
     return compute_day_select_reduction(
         customer_id=req.customer_id,
         event_start=req.event_start,
@@ -120,7 +126,7 @@ def api_day_select_reduction(req: DaySelectReductionRequest):
         400: {"description": "請求錯誤", "content": {"application/json": {"example": GUARANTEED_CBL_ERROR_EXAMPLE}}},
     },
 )
-def api_guaranteed_cbl(req: GuaranteedCBLRequest):
+def api_guaranteed_cbl(req: GuaranteedCBLRequest = Body(..., example=GUARANTEED_CBL_REQUEST_EXAMPLE)):
     return compute_guaranteed_cbl(
         customer_id=req.customer_id,
         event_start=req.event_start,
@@ -138,7 +144,7 @@ def api_guaranteed_cbl(req: GuaranteedCBLRequest):
         400: {"description": "請求錯誤", "content": {"application/json": {"example": GUARANTEED_EVENT_ERROR_EXAMPLE}}},
     },
 )
-def api_guaranteed_reduction(req: GuaranteedEventRequest):
+def api_guaranteed_reduction(req: GuaranteedEventRequest = Body(..., example=GUARANTEED_EVENT_REQUEST_EXAMPLE)):
     return compute_guaranteed_event(
         customer_id=req.customer_id,
         event_start=req.event_start,
@@ -160,7 +166,7 @@ def api_guaranteed_reduction(req: GuaranteedEventRequest):
         400: {"description": "請求錯誤", "content": {"application/json": {"example": GUARANTEED_REWARD_ERROR_EXAMPLE}}},
     },
 )
-def api_guaranteed_reward(req: GuaranteedRewardRequest):
+def api_guaranteed_reward(req: GuaranteedRewardRequest = Body(..., example=GUARANTEED_REWARD_REQUEST_EXAMPLE)):
     return compute_guaranteed_reward(
         customer_id=req.customer_id,
         notification_minutes_before=req.notification_minutes_before,
