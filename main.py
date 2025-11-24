@@ -372,6 +372,35 @@ def _validate_day_select_event_window(event_start: datetime, event_end: datetime
         raise HTTPException(400, "事件時段僅支援 18:00-20:00、16:00-20:00、16:00-22:00")
 
 
+def _validate_guaranteed_event_window(event_start: datetime, event_end: datetime):
+    """Enforce guaranteed DR timing rules: weekday/non-off-peak and start between 13:00-22:00."""
+    event_date = event_start.date()
+    if is_weekend(event_date) or is_off_peak_day(event_date):
+        raise HTTPException(400, "事件日期須為工作日且非離峰日")
+    start_t = event_start.time()
+    if not (time(13, 0) <= start_t <= time(22, 0)):
+        raise HTTPException(400, "執行起始時間僅允許 13:00-22:00")
+
+
+def _validate_guaranteed_capacity(contract_capacity_kw: float, committed_capacity_kw: Optional[float] = None):
+    """Validate guaranteed DR capacity rules."""
+    if contract_capacity_kw < 100:
+        raise HTTPException(400, "經常契約容量須達 100 瓩以上")
+    if committed_capacity_kw is None:
+        return
+    min_committed = max(1000.0, contract_capacity_kw * 0.15)
+    if committed_capacity_kw < min_committed:
+        raise HTTPException(400, f"約定抑低契約容量須達 1,000 瓩或經常契約容量的 15% 以上 (最低 {min_committed:.1f} 瓩)")
+
+
+def _validate_day_select_capacity(contract_capacity_kw: Optional[float], committed_capacity_kw: Optional[float] = None):
+    """Validate day-select capacity rules."""
+    if contract_capacity_kw is not None and contract_capacity_kw < 100:
+        raise HTTPException(400, "日選型經常契約容量須達 100 瓩以上")
+    if committed_capacity_kw is not None and committed_capacity_kw < 20:
+        raise HTTPException(400, "日選型最低約定抑低契約容量須達 20 瓩")
+
+
 def _ensure_full_window(records: List[MeterRecord], start_dt: datetime, end_dt: datetime, label: str):
     """Ensure every 15-minute slot within [start_dt, end_dt) is present."""
     if start_dt >= end_dt:
@@ -444,6 +473,8 @@ def compute_day_select_cbl(
 
     if event_end <= event_start:
         raise HTTPException(400, "event_end 必須晚於 event_start")
+
+    _validate_day_select_capacity(contract_capacity_kw)
 
     event_date = event_start.date()
 
@@ -596,6 +627,8 @@ def compute_day_select_reward(
 
     備註：此函式假設事件時段為 2、4、6 小時之一；若非此範圍將拋出例外。
     """
+    _validate_day_select_capacity(contract_capacity_kw, committed_capacity_kw)
+
     # 計算基準用電（CBL）
     cbl_resp = compute_day_select_cbl(
         customer_id=customer_id,
@@ -730,6 +763,8 @@ def compute_day_select_reduction(
 
     此函式用於執行調度指令後獨立評估實際抑低容量，不包含回饋金計算。
     """
+    _validate_day_select_capacity(contract_capacity_kw, committed_capacity_kw)
+
     # 計算基準用電
     cbl_resp = compute_day_select_cbl(
         customer_id=customer_id,
@@ -836,6 +871,9 @@ def compute_guaranteed_event(
     event_end = to_taipei(event_end)
     if event_end <= event_start:
         raise HTTPException(400, "event_end 必須晚於 event_start")
+
+    _validate_guaranteed_event_window(event_start, event_end)
+    _validate_guaranteed_capacity(contract_capacity_kw, committed_capacity_kw)
 
     # 檢核通知時間選項
     if notification_minutes_before not in (30, 60, 120):
@@ -982,6 +1020,8 @@ def compute_guaranteed_reward(
     for ev in events:
         ev_start = to_taipei(ev.event_start)
         ev_end = to_taipei(ev.event_end)
+        _validate_guaranteed_event_window(ev_start, ev_end)
+        _validate_guaranteed_capacity(contract_capacity_kw, ev.committed_capacity_kw if ev.committed_capacity_kw is not None else committed_capacity_kw)
         baseline_end = ev_start - timedelta(minutes=notification_minutes_before)
         baseline_start = baseline_end - timedelta(hours=2)
         allowed_windows.append((baseline_start, baseline_end))
@@ -1115,9 +1155,9 @@ def compute_guaranteed_cbl(
     if flow_fee_rate is None:
         flow_fee_rate = 12.0
     # 確認 contract_capacity_kw 有效
-    if contract_capacity_kw <= 0:
-        raise HTTPException(400, "contract_capacity_kw 必須大於 0")
+    _validate_guaranteed_capacity(contract_capacity_kw)
     event_start = to_taipei(event_start)
+    _validate_guaranteed_event_window(event_start, event_start + timedelta(minutes=notification_minutes_before))
     # 計算通知時間及基準區間
     notification_time = event_start - timedelta(minutes=notification_minutes_before)
     baseline_start = notification_time - timedelta(hours=2)
