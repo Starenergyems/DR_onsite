@@ -130,6 +130,22 @@ Request fields:
 
 The response includes the baseline (`cbl_kw`), the actual average demand during the event, the actual reduction, and—if `committed_capacity_kw` is provided—the **execution rate** and **reduction ratio**.  It also returns the list of baseline source days and a `detail` object containing intermediate values such as `cbl1_kw`, `af_kw`, `hist_adjust_avg_kw`, `today_adjust_avg_kw`, and, when applicable, `execution_rate` and `reduction_ratio`.
 
+### Batch production time tariff (批次生產時間電價)
+
+For participants opting into the batch production time tariff, the event window is fixed to **15:30–21:30** (`batch_time_tariff: true`). Two ready-to-use samples are included:
+
+```bash
+curl -X POST http://localhost:18000/dr/day-select/cbl \
+  -H "Content-Type: application/json" \
+  --data @samples/day_select_batch_cbl_correct.json
+
+curl -X POST http://localhost:18000/dr/day-select/reward \
+  -H "Content-Type: application/json" \
+  --data @samples/day_select_batch_reward_correct.json
+```
+
+Both samples contain complete 15-minute data for the required 15:30–21:30 window.
+
 ## Demonstration Dataset
 
 `sample_meter_data.json` contains 15-minute data for `C001` covering 20 baseline weekdays plus the event day (event window 16:00–22:00, adjustment window 22:00–24:00). Use it directly—no batch upload endpoint is needed.

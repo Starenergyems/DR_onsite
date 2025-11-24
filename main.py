@@ -28,6 +28,7 @@ class DaySelectCBLRequest(BaseModel):
     customer_id: str
     event_start: datetime
     event_end: datetime
+    batch_time_tariff: bool = Field(False, description="是否選用批次生產時間電價（固定 15:30-21:30）")
     assumed_adjust_avg_kw: Optional[float] = Field(
         None, description="若在事件前計算 CBL，可假設事件日 22:00-24:00 平均需量，未提供則以 0 計算 AF"
     )
@@ -53,12 +54,14 @@ class DaySelectRewardRequest(BaseModel):
     參數說明：
     - customer_id: 用戶識別碼。
     - event_start/event_end: DR 事件開始與結束時間（含時區）。
+    - batch_time_tariff: 是否選用批次生產時間電價（固定 15:30-21:30）。
     - contract_capacity_kw: 經常契約容量 CBL2，用於計算基準用電上限。
     - committed_capacity_kw: 約定抑低契約容量，用於計算執行率與回饋金。
     """
     customer_id: str
     event_start: datetime
     event_end: datetime
+    batch_time_tariff: bool = Field(False, description="是否選用批次生產時間電價（固定 15:30-21:30）")
     assumed_adjust_avg_kw: Optional[float] = Field(
         None, description="事件前可提供假設之 22:00-24:00 平均需量；未提供則 AF 預設 0"
     )
@@ -93,6 +96,7 @@ class DaySelectReductionRequest(BaseModel):
     customer_id: str
     event_start: datetime
     event_end: datetime
+    batch_time_tariff: bool = Field(False, description="是否選用批次生產時間電價（固定 15:30-21:30）")
     assumed_adjust_avg_kw: Optional[float] = Field(
         None, description="事件前可提供假設之 22:00-24:00 平均需量；未提供則 AF 預設 0"
     )
@@ -336,6 +340,18 @@ def _build_window_range(base_date: date, start_t: time, end_t: time) -> (datetim
     return start_dt, end_dt
 
 
+def _normalize_day_select_window(event_start: datetime, event_end: datetime, batch_time_tariff: bool) -> (datetime, datetime):
+    """Apply batch-time tariff window if requested; otherwise just TZ-normalize."""
+    start = to_taipei(event_start)
+    end = to_taipei(event_end)
+    if not batch_time_tariff:
+        return start, end
+    event_date = start.date()
+    start_dt = to_taipei(datetime.combine(event_date, time(15, 30)))
+    end_dt = to_taipei(datetime.combine(event_date, time(21, 30)))
+    return start_dt, end_dt
+
+
 def _ensure_full_window(records: List[MeterRecord], start_dt: datetime, end_dt: datetime, label: str):
     """Ensure every 15-minute slot within [start_dt, end_dt) is present."""
     if start_dt >= end_dt:
@@ -399,12 +415,12 @@ def compute_day_select_cbl(
     event_start: datetime,
     event_end: datetime,
     records: List[MeterRecord],
+    batch_time_tariff: bool = False,
     assumed_today_adjust_avg_kw: Optional[float] = None,
     contract_capacity_kw: Optional[float] = None,
     min_baseline_days: int = 20,
 ):
-    event_start = to_taipei(event_start)
-    event_end = to_taipei(event_end)
+    event_start, event_end = _normalize_day_select_window(event_start, event_end, batch_time_tariff)
 
     if event_end <= event_start:
         raise HTTPException(400, "event_end 必須晚於 event_start")
@@ -541,6 +557,7 @@ def compute_day_select_reward(
     records: List[MeterRecord],
     committed_capacity_kw: float,
     contract_capacity_kw: Optional[float] = None,
+    batch_time_tariff: bool = False,
     assumed_today_adjust_avg_kw: Optional[float] = None,
     min_baseline_days: int = 20,
 ):
@@ -563,15 +580,16 @@ def compute_day_select_reward(
         event_start=event_start,
         event_end=event_end,
         records=records,
+        batch_time_tariff=batch_time_tariff,
         assumed_today_adjust_avg_kw=assumed_today_adjust_avg_kw,
         contract_capacity_kw=contract_capacity_kw,
         min_baseline_days=min_baseline_days,
     )
     cbl_kw = cbl_resp.cbl_kw
 
-    # 事件時區轉換
-    event_start = to_taipei(event_start)
-    event_end = to_taipei(event_end)
+    # 事件時區轉換（使用 CBL 後的事件時段，若 batch tariff 則為 15:30-21:30）
+    event_start = to_taipei(cbl_resp.event_start)
+    event_end = to_taipei(cbl_resp.event_end)
     event_date = event_start.date()
     # 取得此用戶所有紀錄
     customer_records = validate_customer_records(records, customer_id)
@@ -675,6 +693,7 @@ def compute_day_select_reduction(
     event_start: datetime,
     event_end: datetime,
     records: List[MeterRecord],
+    batch_time_tariff: bool = False,
     assumed_today_adjust_avg_kw: Optional[float] = None,
     contract_capacity_kw: Optional[float] = None,
     committed_capacity_kw: Optional[float] = None,
@@ -695,14 +714,15 @@ def compute_day_select_reduction(
         event_start=event_start,
         event_end=event_end,
         records=records,
+        batch_time_tariff=batch_time_tariff,
         assumed_today_adjust_avg_kw=assumed_today_adjust_avg_kw,
         contract_capacity_kw=contract_capacity_kw,
         min_baseline_days=min_baseline_days,
     )
     cbl_kw = cbl_resp.cbl_kw
     # 轉換時區
-    event_start = to_taipei(event_start)
-    event_end = to_taipei(event_end)
+    event_start = to_taipei(cbl_resp.event_start)
+    event_end = to_taipei(cbl_resp.event_end)
     event_date = event_start.date()
     # 取得實際事件平均需量
     customer_records = validate_customer_records(records, customer_id)
@@ -1121,6 +1141,7 @@ def api_day_select_cbl(req: DaySelectCBLRequest):
         event_start=req.event_start,
         event_end=req.event_end,
         records=req.records,
+        batch_time_tariff=req.batch_time_tariff,
         assumed_today_adjust_avg_kw=req.assumed_adjust_avg_kw,
         contract_capacity_kw=req.contract_capacity_kw,
     )
@@ -1134,6 +1155,7 @@ def api_day_select_reward(req: DaySelectRewardRequest):
         event_start=req.event_start,
         event_end=req.event_end,
         records=req.records,
+        batch_time_tariff=req.batch_time_tariff,
         assumed_today_adjust_avg_kw=req.assumed_adjust_avg_kw,
         contract_capacity_kw=req.contract_capacity_kw,
         committed_capacity_kw=req.committed_capacity_kw,
@@ -1149,6 +1171,7 @@ def api_day_select_reduction(req: DaySelectReductionRequest):
         event_start=req.event_start,
         event_end=req.event_end,
         records=req.records,
+        batch_time_tariff=req.batch_time_tariff,
         assumed_today_adjust_avg_kw=req.assumed_adjust_avg_kw,
         contract_capacity_kw=req.contract_capacity_kw,
         committed_capacity_kw=req.committed_capacity_kw,
