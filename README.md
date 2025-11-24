@@ -1,6 +1,6 @@
 # DR API Server – 日選時段型 CBL
 
-This repository contains a reference implementation of a **Demand Response (DR) API server** written in Python using FastAPI.  The goal of the service is to compute the **Customer Baseline Load (CBL)** for participants in the **日選時段型 (day‑select time‑slot)** DR program as defined by Taipower.  A CBL represents the participant’s typical load during a DR event and is used to determine the actual load reduction and corresponding reward.
+This repository contains a reference implementation of a **Demand Response (DR) API server** written in Python using FastAPI.  The initial goal of the service was to compute the **Customer Baseline Load (CBL)** and reward for participants in the **日選時段型 (day‑select time‑slot)** DR program as defined by Taipower.  It has since been extended to support the **保證反應型 (guaranteed response)** plan under the **即時性調整用電措施** (real‑time adjustment measures).  In both cases, the API helps determine a participant’s typical load during a DR event and calculate the actual load reduction and corresponding fee reduction.
 
 ## Background
 
@@ -15,8 +15,9 @@ If this difference is negative it is treated as zero【106788555196366†L141-L1
 
 - **FastAPI server** with clear, self‑documenting endpoints.
 - **In‑memory storage** for 15‑minute metering records (kW).  In production this can be replaced by a database such as PostgreSQL or TimescaleDB.
-- **CBL computation** for the 日選時段型 DR plan, including handling of cross‑day intervals (22:00–24:00) for the load‑adjustment factor.
-- **Sample dataset** and step‑by‑step instructions to demonstrate uploading meter data and retrieving the computed CBL.
+- **CBL and reward computation** for the **日選時段型** DR plan, including handling of cross‑day intervals (22:00–24:00) for the load‑adjustment factor.
+- **Baseline and fee reduction calculation** for the **保證反應型** plan, supporting per‑event baseline and monthly fee reduction computations with execution‑rate‑based incentives and penalties【574061540680747†L208-L238】【574061540680747†L240-L272】.
+- **Sample dataset** and step‑by‑step instructions to demonstrate uploading meter data and retrieving computed results.
 
 ## Requirements
 
@@ -42,31 +43,22 @@ The service will listen on `http://localhost:18000/` by default.  Swagger/OpenAP
 
 ## API Endpoints
 
-### `POST /meter-data/batch`
-
-Upload a batch of 15‑minute metering records.  The request body must be JSON with a `records` field containing a list of objects:
-
-- `customer_id` – identifier for the customer (string)
-- `timestamp`  – ISO 8601 timestamp with time zone (e.g. `"2025-06-10T16:00:00+08:00"`)
-- `kw`         – average demand during the 15‑minute interval (float, ≥ 0)
-
-Example request:
-
-```bash
-curl -X POST http://localhost:18000/meter-data/batch \
-     -H "Content-Type: application/json" \
-     --data @sample_meter_data.json
-```
+All compute endpoints take meter data inline (`records: [...]`). Validation rules:
+- Timestamps must align to 15‑minute boundaries; no duplicates per customer.
+- Required windows must be gap‑free (baseline event windows, 22:00–24:00 windows, and event windows).
+- Records outside the required windows for that request are rejected.
 
 ### `POST /dr/day-select/cbl`
 
 Compute the CBL for a given DR event.  The request body must include:
 
 - `customer_id` – ID of the customer
-- `event_start` – start time of the DR event (ISO 8601 with time zone)
+- `event_start` – start time of the DR event (ISO 8601 with time zone)
 - `event_end`   – end time of the DR event (must be later than the start time)
+- `records` – 15-minute meter records covering the baseline weekdays’ event windows, their 22:00–24:00 windows, and the event day’s event/22:00–24:00 windows.
+- `contract_capacity_kw` – the participant’s contract capacity in kW (CBL2).  If provided, the final CBL will be the smaller of `CBL1 + AF` and this contract capacity
+- Optional: `assumed_adjust_avg_kw` – if computing before the event and you do not have event-day 22:00–24:00 data, provide an assumed average; otherwise AF uses actual data.
 
-**Additional field**: `contract_capacity_kw` – the participant’s contract capacity in kW (CBL2).  If provided, the final CBL will be the smaller of `CBL1 + AF` and this contract capacity【164418267621156†L24-L35】.
 
 When called, the endpoint will:
 
@@ -76,18 +68,22 @@ When called, the endpoint will:
 4. Compute the load‑adjustment factor using the 22:00–24:00 window【106788555196366†L141-L147】.
 5. Return a JSON response containing the baseline kW, the list of dates used as baseline sources and intermediate calculation details.
 
-Example request:
+Example using the bundled sample data:
 
 ```bash
+jq '{
+  customer_id: "C001",
+  event_start: "2025-07-01T16:00:00+08:00",
+  event_end: "2025-07-01T22:00:00+08:00",
+  contract_capacity_kw: 120,
+  records: .records
+}' sample_meter_data.json > day_select_cbl.json
+
 curl -X POST http://localhost:18000/dr/day-select/cbl \
      -H "Content-Type: application/json" \
-     -d '{
-         "customer_id": "C001",
-         "event_start": "2025-07-01T16:00:00+08:00",
-         "event_end":   "2025-07-01T22:00:00+08:00",
-         "contract_capacity_kw": 120
-     }'
+     --data @day_select_cbl.json
 ```
+
 
 Sample response (your numbers may differ depending on your data):
 
@@ -115,40 +111,64 @@ Sample response (your numbers may differ depending on your data):
 }
 ```
 
+### `POST /dr/day-select/reduction`
+
+This endpoint computes the **actual load reduction** for a day‑select DR event without applying any fee formula.  It should be used **after** the dispatch instruction has been executed, once actual event demand data is available.
+
+The server performs the following steps:
+
+1. Compute the baseline (CBL) using the same logic as `/dr/day-select/cbl`.
+2. Calculate the participant’s **actual average demand** during the event window.
+3. Compute the **actual reduction** as `max(cbl_kw − actual_avg_kw, 0)`.
+
+Request fields:
+
+- `customer_id` – ID of the customer.
+- `event_start` / `event_end` – start and end times of the DR event (must be 2–6 hours apart).
+- `contract_capacity_kw` – the participant’s contract capacity (optional).  If provided, it caps the CBL as in the baseline calculation.
+ - `committed_capacity_kw` – the participant’s **committed reduction capacity** (optional).  If provided, the endpoint will compute an **execution rate** (actual reduction ÷ committed capacity) and a **reduction ratio** following the day‑select reward table (0, 0.8, 1.0, 1.2).
+
+The response includes the baseline (`cbl_kw`), the actual average demand during the event, the actual reduction, and—if `committed_capacity_kw` is provided—the **execution rate** and **reduction ratio**.  It also returns the list of baseline source days and a `detail` object containing intermediate values such as `cbl1_kw`, `af_kw`, `hist_adjust_avg_kw`, `today_adjust_avg_kw`, and, when applicable, `execution_rate` and `reduction_ratio`.
+
+### Batch production time tariff (批次生產時間電價)
+
+For participants opting into the batch production time tariff, the event window is fixed to **15:30–21:30** (`batch_time_tariff: true`). Two ready-to-use samples are included:
+
+```bash
+curl -X POST http://localhost:18000/dr/day-select/cbl \
+  -H "Content-Type: application/json" \
+  --data @samples/day_select_batch_cbl_correct.json
+
+curl -X POST http://localhost:18000/dr/day-select/reward \
+  -H "Content-Type: application/json" \
+  --data @samples/day_select_batch_reward_correct.json
+```
+
+Both samples contain complete 15-minute data for the required 15:30–21:30 window.
+
 ## Demonstration Dataset
 
-To help you try out the API quickly, a **sample dataset** is included in this repository: `sample_meter_data.json`.  It contains 15‑minute metering records for one customer (`C001`) covering the 20 baseline days prior to a sample event on 1 July 2025 (16:00–22:00) as well as the event day itself.  The baseline values are around 100 kW during both the event window and the 22:00–24:00 window, while the event day is slightly lower to illustrate a positive reduction.
+`sample_meter_data.json` contains 15-minute data for `C001` covering 20 baseline weekdays plus the event day (event window 16:00–22:00, adjustment window 22:00–24:00). Use it directly—no batch upload endpoint is needed.
 
-Steps to run the demo:
+Quick test:
 
-1. Start the server:
+```bash
+uvicorn main:app --reload
 
-   ```bash
-   uvicorn main:app --reload
-   ```
+jq '{
+  customer_id: "C001",
+  event_start: "2025-07-01T16:00:00+08:00",
+  event_end: "2025-07-01T22:00:00+08:00",
+  contract_capacity_kw: 120,
+  committed_capacity_kw: 100,
+  records: .records
+}' sample_meter_data.json > day_select_reward.json
 
-2. Upload the sample meter data:
+curl -X POST http://localhost:18000/dr/day-select/reward \
+     -H "Content-Type: application/json" \
+     --data @day_select_reward.json
+```
 
-   ```bash
-   curl -X POST http://localhost:18000/meter-data/batch \
-        -H "Content-Type: application/json" \
-        --data @sample_meter_data.json
-   ```
-
-3. Request the CBL for the event (and provide the contract capacity):
-
-   ```bash
-   curl -X POST http://localhost:18000/dr/day-select/cbl \
-        -H "Content-Type: application/json" \
-        -d '{
-          "customer_id": "C001",
-          "event_start": "2025-07-01T16:00:00+08:00",
-          "event_end":   "2025-07-01T22:00:00+08:00",
-          "contract_capacity_kw": 120
-        }'
-   ```
-
-The response will include the computed `baseline_kw` along with intermediate details showing the baseline event‑window average, the historical adjustment average and the load‑adjustment factor.
 
 ### `POST /dr/day-select/reward`
 
@@ -169,21 +189,17 @@ Request fields:
 
 - `customer_id` – ID of the customer
 - `event_start` / `event_end` – start and end times of the DR event (must be 2, 4 or 6 hours apart)
+- `records` – 15-minute meter records (same coverage as `/dr/day-select/cbl`)
 - `contract_capacity_kw` – the customer’s contract capacity (CBL2) used in the CBL calculation
 - `committed_capacity_kw` – the committed reduction capacity (約定抑低契約容量) used for the reward formula
+- Optional: `assumed_adjust_avg_kw` – provide an assumed 22:00–24:00 average if calculating before event-day data is available.
 
-Example request:
+Example (using the sample payload built above):
 
 ```bash
 curl -X POST http://localhost:18000/dr/day-select/reward \
      -H "Content-Type: application/json" \
-     -d '{
-       "customer_id": "C001",
-       "event_start": "2025-07-01T16:00:00+08:00",
-       "event_end":   "2025-07-01T22:00:00+08:00",
-       "contract_capacity_kw": 120,
-       "committed_capacity_kw": 100
-     }'
+     --data @day_select_reward.json
 ```
 
 Sample response (numbers will vary with your data):
@@ -262,3 +278,135 @@ The current implementation focuses solely on the 日選時段型 CBL calculation
 - **User authentication** and multi‑tenant support for different customers.
 
 By building on this foundation, you can create a complete DR management platform that complies with Taipower’s regulations and provides participants with transparent and auditable baseline calculations.
+
+## Guaranteed Response Plan (保證反應型)
+
+In addition to the day‑select plan, the API also supports Taipower’s **保證反應型** (guaranteed response) program under the 即時性調整用電措施.  Participants in this program commit to reduce a fixed capacity when notified and are rewarded (or penalized) based on their performance over a month【574061540680747†L208-L238】【574061540680747†L240-L253】.
+
+### Baseline and Reduction Calculation
+
+For each guaranteed response event:
+
+1. **Notification and event duration** – Taipower may notify participants **30, 60 or 120 minutes** before the event.  Events may last **2 hours**, **3 hours** or **4 hours**【574061540680747†L208-L238】.
+2. **Baseline (基準用電)** – The baseline is defined as the average demand during the **two hours immediately before the notification time**【574061540680747†L208-L238】.  The server computes this average using 15‑minute records.
+3. **Actual reduction** – The reduction is the difference between the baseline and the participant’s average demand during the event window.  If this value is negative, it is set to zero【574061540680747†L235-L238】.
+4. **Execution rate** – The ratio of the actual reduction to the participant’s **contract capacity**.  It is rounded to one decimal place and capped at **1.0 (100%)**【574061540680747†L258-L272】.
+
+### Fee Reduction and Penalty Rules
+
+The monthly fee adjustment consists of a **basic fee reduction** and a **flow fee reduction**, minus any **extra charges**:
+
+- **Basic fee reduction** – Calculated from the contract capacity and a basic fee rate (NTD per kW per month).  The rate depends on the notification advance time (93 for 30 min, 84 for 60 min, 78 for 120 min)【574061540680747†L240-L253】.  A reduction ratio is applied based on the **average execution rate** across all events in the month:
+  - Average execution < 70 % → ratio = 0
+  - 70 % ≤ average < 80 % → ratio = 0.6
+  - 80 % ≤ average < 95 % → ratio = 0.8
+  - Average ≥ 95 % → ratio = 1.0【574061540680747†L258-L272】
+- **Flow fee reduction** – For each event, if the execution rate ≥ 70 %, the participant receives a reduction equal to **actual reduction × event duration × flow fee rate** (default flow fee rate is 12 NTD per kWh)【574061540680747†L282-L286】.  Otherwise, the flow reduction is zero.
+- **Extra charge** – If an event’s execution rate < 60 %, the participant is charged: 
+
+  \[(1 − \text{execution_rate}) × \text{contract_capacity_kw} × \text{event_duration_hours} × \text{flow_fee_rate} × 2\]
+
+  This penalty doubles the flow fee rate and applies to the portion of the committed capacity that was not met【574061540680747†L288-L291】.
+- **No events** – If no events are notified in a month, the basic fee reduction defaults to **contract_capacity × basic_fee_rate**【574061540680747†L295-L297】.
+
+### Endpoints
+
+Two additional endpoints implement these rules for the guaranteed response plan:
+
+#### `POST /dr/guaranteed/cbl`
+
+Compute the baseline (two‑hour pre‑notification average) for a single guaranteed response event.  Use this endpoint **before** dispatch to determine the participant’s typical load without the need for actual event data.
+
+Request fields:
+
+- `customer_id` – ID of the participant.
+- `event_start` – scheduled start time of the event (ISO 8601).
+- `notification_minutes_before` – minutes of advance notice (30, 60 or 120).
+- `contract_capacity_kw` – the participant’s committed reduction capacity (kW).
+
+The response returns the baseline kW and the time window used for the calculation.
+
+#### `POST /dr/guaranteed/reduction`
+
+Compute the baseline and **actual reduction** for a single guaranteed response event.  This endpoint should be used **after** the event has occurred.  The request body must include:
+
+- `customer_id` – ID of the participant.
+- `event_start` / `event_end` – start and end timestamps of the event (ISO 8601).  The difference between them must be 2, 3 or 4 hours【574061540680747†L208-L238】.
+- `notification_minutes_before` – minutes of advance notice (30, 60 or 120).
+- `contract_capacity_kw` – the participant’s committed reduction capacity (kW).
+- Optional: `basic_fee_rate` and `flow_fee_rate` – override the default rates.
+
+The response returns the baseline kW, the actual average demand and reduction, the execution rate, and the flow fee reduction or extra charge for that event.
+
+#### `POST /dr/guaranteed/reward`
+
+Compute the **monthly electricity‑fee adjustment** for a guaranteed response participant.  The request body must include:
+
+- `customer_id` – ID of the participant.
+- `notification_minutes_before` – the standard advance notice for the month (30, 60 or 120).
+- `contract_capacity_kw` – the participant’s contract capacity (kW).
+- `events` – a list of objects describing each event in the month (each object must include `event_start`, `event_end`, and optionally `basic_fee_rate` and `flow_fee_rate`).
+- Optional: `basic_fee_rate` and `flow_fee_rate` – override the default rates for all events.
+
+The endpoint calculates, for each event, the baseline, reduction, execution rate, flow reduction and extra charge.  It then computes the average execution rate for the month, applies the appropriate reduction ratio to the basic fee, sums the flow reductions and extra charges, and returns the net reward.
+
+### Variables for the Guaranteed Response Plan
+
+- **`baseline_kw`** – The average demand during the 2‑hour window preceding the notification time【574061540680747†L208-L238】.
+- **`actual_avg_kw`** – The average demand during the event window.
+- **`actual_reduction_kw`** – `max(baseline_kw − actual_avg_kw, 0)`【574061540680747†L235-L238】.
+- **`execution_rate`** – `(actual_reduction_kw / contract_capacity_kw)`, rounded to one decimal place and capped at 1.0 (100%)【574061540680747†L258-L272】.
+- **`event_duration_hours`** – Length of the event in hours (2, 3 or 4).
+- **`flow_reduction_amount`** – For each event, if `execution_rate ≥ 0.7`, equals `actual_reduction_kw × event_duration_hours × flow_fee_rate`; otherwise zero【574061540680747†L282-L286】.
+- **`extra_charge_amount`** – For each event, if `execution_rate < 0.6`, equals `(1 − execution_rate) × contract_capacity_kw × event_duration_hours × flow_fee_rate × 2`; otherwise zero【574061540680747†L288-L291】.
+- **`average_execution_rate`** – The average of all event execution rates across the month.
+- **`reduction_ratio`** – Multiplier for the basic fee reduction based on the average execution rate (0, 0.6, 0.8 or 1.0)【574061540680747†L258-L272】.
+- **`basic_fee_rate`** – The monthly fee rate per kW, determined by the notification advance time (93, 84 or 78 NTD/kW)【574061540680747†L240-L253】.
+- **`flow_fee_rate`** – The per‑kWh flow fee rate (default 12 NTD/kWh)【574061540680747†L240-L253】.
+- **`basic_reduction_amount`** – `contract_capacity_kw × basic_fee_rate × reduction_ratio` (or `contract_capacity_kw × basic_fee_rate` if no events occurred)【574061540680747†L295-L297】.
+- **`flow_reduction_total_amount`** – Sum of `flow_reduction_amount` across all events in the month.
+- **`extra_charge_total_amount`** – Sum of `extra_charge_amount` across all events.
+- **`net_reward_amount`** – `basic_reduction_amount + flow_reduction_total_amount − extra_charge_total_amount`.
+
+## Samples
+
+Sample payloads live in `samples/`:
+- Day-select CBL pre-event: `samples/day_select_cbl_correct.json` (valid; uses `assumed_adjust_avg_kw`, baseline-only records) and `samples/day_select_cbl_wrong.json` (invalid: missing a baseline slot).
+- Day-select reward/reduction post-event: `samples/day_select_reward_correct.json` (valid) and `samples/day_select_reward_wrong.json` (invalid: missing an event-window slot).
+- Guaranteed CBL pre-event: `samples/guaranteed_cbl_correct.json` (valid) and `samples/guaranteed_cbl_wrong.json` (invalid: misaligned timestamp).
+- Guaranteed reward/reduction post-event: `samples/guaranteed_reward_correct.json` (valid) and `samples/guaranteed_reward_wrong.json` (invalid: missing an event-window slot).
+
+Quick calls:
+
+```bash
+# Day-select CBL (pre-event, assumed adjust)
+curl -X POST http://localhost:18000/dr/day-select/cbl \
+  -H "Content-Type: application/json" \
+  --data @samples/day_select_cbl_correct.json
+
+# Day-select reward (post-event)
+curl -X POST http://localhost:18000/dr/day-select/reward \
+  -H "Content-Type: application/json" \
+  --data @samples/day_select_reward_correct.json
+
+# Guaranteed CBL (pre-event)
+curl -X POST http://localhost:18000/dr/guaranteed/cbl \
+  -H "Content-Type: application/json" \
+  --data @samples/guaranteed_cbl_correct.json
+
+# Guaranteed reward (post-event)
+curl -X POST http://localhost:18000/dr/guaranteed/reward \
+  -H "Content-Type: application/json" \
+  --data @samples/guaranteed_reward_correct.json
+```
+
+## Sample Calls and Expected Results
+
+- `samples/day_select_cbl_correct.json` → `POST /dr/day-select/cbl`: 200 OK. `cbl_kw` ~100 (AF ≈ 0 because assumed_adjust_avg_kw=95 is below hist adjust). Baseline dates list returned.
+- `samples/day_select_cbl_wrong.json` → `POST /dr/day-select/cbl`: 400 with message like `缺少 ... 15 分鐘區間` (baseline window gap).
+- `samples/day_select_reward_correct.json` → `POST /dr/day-select/reward`: 200 OK. `cbl_kw` ~100; event avg < baseline so positive `actual_reduction_kw`; execution_rate based on committed=100.
+- `samples/day_select_reward_wrong.json` → `POST /dr/day-select/reward`: 400 with message like `事件日 ... 缺少 ... 15 分鐘區間` (event window gap).
+- `samples/guaranteed_cbl_correct.json` → `POST /dr/guaranteed/cbl`: 200 OK. `baseline_kw` ~100 (average of 08:00–10:00).
+- `samples/guaranteed_cbl_wrong.json` → `POST /dr/guaranteed/cbl`: 400 with message like `時間戳未對齊 15 分鐘`.
+- `samples/guaranteed_reward_correct.json` → `POST /dr/guaranteed/reward`: 200 OK. `baseline_kw` ~100, event avg ~30 → reduction ~70, execution_rate ~0.8 on committed=90; flow reduction positive, no penalty.
+- `samples/guaranteed_reward_wrong.json` → `POST /dr/guaranteed/reward`: 400 with message like `缺少 ... 15 分鐘區間` (event window gap).

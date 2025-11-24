@@ -1,0 +1,95 @@
+{
+  "customer_id": "G001",
+  "notification_minutes_before": 60,
+  "contract_capacity_kw": 1000,
+  "committed_capacity_kw": 1000,
+  "events": [
+    {
+      "customer_id": "G001",
+      "event_start": "2025-08-01T13:00:00+08:00",
+      "event_end": "2025-08-01T15:00:00+08:00"
+    }
+  ],
+  "records": [
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T10:00:00+08:00",
+      "kw": 1000.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T10:15:00+08:00",
+      "kw": 1000.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T10:30:00+08:00",
+      "kw": 1000.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T10:45:00+08:00",
+      "kw": 1000.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T11:00:00+08:00",
+      "kw": 1000.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T11:15:00+08:00",
+      "kw": 1000.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T11:30:00+08:00",
+      "kw": 1000.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T11:45:00+08:00",
+      "kw": 1000.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T13:00:00+08:00",
+      "kw": 200.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T13:15:00+08:00",
+      "kw": 200.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T13:30:00+08:00",
+      "kw": 200.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T13:45:00+08:00",
+      "kw": 200.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T14:00:00+08:00",
+      "kw": 200.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T14:15:00+08:00",
+      "kw": 200.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T14:30:00+08:00",
+      "kw": 200.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T14:45:00+08:00",
+      "kw": 200.0
+    }
+  ]
+}

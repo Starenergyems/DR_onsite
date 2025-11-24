@@ -1,0 +1,48 @@
+{
+  "customer_id": "G001",
+  "event_start": "2025-08-01T13:00:00+08:00",
+  "notification_minutes_before": 60,
+  "contract_capacity_kw": 100,
+  "records": [
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T11:05:00+08:00",
+      "kw": 100.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T11:15:00+08:00",
+      "kw": 100.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T11:30:00+08:00",
+      "kw": 100.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T11:45:00+08:00",
+      "kw": 100.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T12:00:00+08:00",
+      "kw": 100.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T12:15:00+08:00",
+      "kw": 100.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T12:30:00+08:00",
+      "kw": 100.0
+    },
+    {
+      "customer_id": "G001",
+      "timestamp": "2025-08-01T12:45:00+08:00",
+      "kw": 100.0
+    }
+  ]
+}
