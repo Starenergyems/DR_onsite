@@ -64,13 +64,10 @@ app = FastAPI(
     title="Taipower DR API Server",
     version="1.1.0",
     description=(
-        "日選 DR API：提供基準用電 (CBL) 計算與回饋金試算。\n"
-        "- /dr/day-select/cbl：計算日選方案基準用電 (CBL)。\n"
-        "- /dr/day-select/reward：計算日選方案回饋金。\n"
-        "- /dr/day-select/reduction：計算日選方案實際抑低容量。\n"
-        "- /dr/guaranteed/cbl：計算保證反應型基準用電 (CBL)。\n"
-        "- /dr/guaranteed/reduction：計算保證反應型單次事件實際抑低容量。\n"
-        "- /dr/guaranteed/reward：計算保證反應型月度電費扣減總額。"
+        "Taipower DR API：日選（時段型）與保證反應型的 CBL、實際抑低與回饋金計算。\n"
+        "日選：/dr/day-select/cbl、/reward、/reduction，以及對應的需求視窗查詢 (cbl/reward/reduction)。\n"
+        "保證：/dr/guaranteed/cbl、/reduction、/reward，以及對應的需求視窗查詢 (cbl/reward/reduction)。\n"
+        "需求視窗端點會回傳需要的 15 分鐘資料區間，方便在事件前後蒐集或檢核資料。"
     ),
 )
 
@@ -78,7 +75,7 @@ app = FastAPI(
 @app.post(
     "/dr/day-select/cbl",
     response_model=DaySelectCBLResponse,
-    description="計算日選方案事件期間的基準用電 (CBL) 與採樣基準日，需傳入客戶 15 分鐘需量紀錄。",
+    description="計算日選方案基準用電 (CBL)，含 CBL1+AF 並套用契約容量上限；需 15 分鐘紀錄、基準日/事件日 22:00-24:00 視窗。",
     responses={
         200: {"description": "計算成功", "content": {"application/json": {"example": DAY_SELECT_CBL_RESPONSE_EXAMPLE}}},
         400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_CBL_ERROR_EXAMPLE}}},
@@ -99,7 +96,7 @@ def api_day_select_cbl(req: DaySelectCBLRequest = Body(..., example=DAY_SELECT_C
 @app.post(
     "/dr/day-select/reward",
     response_model=DaySelectRewardResponse,
-    description="以日選 CBL 與實測需量計算單次事件的回饋金、實際抑低容量與執行率。",
+    description="計算日選方案回饋金：先算 CBL/實際抑低，再套用執行率、扣減比率與費率。",
     responses={
         200: {"description": "計算成功", "content": {"application/json": {"example": DAY_SELECT_REWARD_RESPONSE_EXAMPLE}}},
         400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_REWARD_ERROR_EXAMPLE}}},
@@ -121,7 +118,7 @@ def api_day_select_reward(req: DaySelectRewardRequest = Body(..., example=DAY_SE
 @app.post(
     "/dr/day-select/reduction",
     response_model=DaySelectReductionResponse,
-    description="回傳日選方案事件的 CBL、實際平均需量、抑低容量；若提供約定容量則一併計算執行率。",
+    description="計算日選方案實際抑低容量（含可選執行率/扣減比率），不計算回饋金。",
     responses={
         200: {"description": "計算成功", "content": {"application/json": {"example": DAY_SELECT_REDUCTION_RESPONSE_EXAMPLE}}},
         400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_REDUCTION_ERROR_EXAMPLE}}},
