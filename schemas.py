@@ -13,6 +13,11 @@ class MeterRecord(BaseModel):
     kw: float = Field(..., ge=0)
 
 
+class DRPeriod(BaseModel):
+    start: str = Field(..., description="抑低期間起日，格式 YYYY-MM 或 YYYY-MM-DD")
+    end: str = Field(..., description="抑低期間迄日，格式 YYYY-MM 或 YYYY-MM-DD")
+
+
 class DaySelectCBLRequest(BaseModel):
     customer_id: str
     event_start: datetime
@@ -23,6 +28,7 @@ class DaySelectCBLRequest(BaseModel):
     )
     records: List[MeterRecord]
     contract_capacity_kw: Optional[float] = None
+    dr_periods: List[DRPeriod] = Field(..., description="與台電簽訂的抑低期間清單，起訖含當日")
 
 
 class DaySelectCBLResponse(BaseModel):
@@ -46,6 +52,7 @@ class DaySelectRewardRequest(BaseModel):
     records: List[MeterRecord]
     contract_capacity_kw: Optional[float] = None
     committed_capacity_kw: float
+    dr_periods: List[DRPeriod] = Field(..., description="與台電簽訂的抑低期間清單，起訖含當日")
 
 
 class DaySelectRewardResponse(BaseModel):
@@ -77,6 +84,7 @@ class DaySelectReductionRequest(BaseModel):
     records: List[MeterRecord]
     contract_capacity_kw: Optional[float] = None
     committed_capacity_kw: Optional[float] = None
+    dr_periods: List[DRPeriod] = Field(..., description="與台電簽訂的抑低期間清單，起訖含當日")
 
 
 class DaySelectReductionResponse(BaseModel):
@@ -206,6 +214,7 @@ class DaySelectRequiredRequest(BaseModel):
     event_end: datetime
     batch_time_tariff: bool = False
     min_baseline_days: int = 20
+    dr_periods: List[DRPeriod]
 
 
 class DaySelectRequiredResponse(BaseModel):

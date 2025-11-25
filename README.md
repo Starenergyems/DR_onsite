@@ -57,15 +57,16 @@ Compute the CBL for a given DR event.  The request body must include:
 - `event_end`   – end time of the DR event (must be later than the start time)
 - `records` – 15-minute meter records covering the baseline weekdays’ event windows, their 22:00–24:00 windows, and the event day’s event/22:00–24:00 windows.
 - `contract_capacity_kw` – the participant’s contract capacity in kW (CBL2).  If provided, the final CBL will be the smaller of `CBL1 + AF` and this contract capacity
+- `dr_periods` – list of contract DR periods, each with `start`/`end` (YYYY-MM or YYYY-MM-DD). Event day must lie within one of these periods.
 - Optional: `assumed_af_kw` – if computing before the event and you do not have event-day 22:00–24:00 data, provide an assumed average (used for AF); otherwise AF uses actual data.
 
 
 When called, the endpoint will:
 
-1. Verify that the event lies within the valid program window (5 May – 31 Oct)【106788555196366†L120-L128】.
-2. Locate the 20 most recent qualifying days prior to the event (excluding weekends, off‑peak days and previous DR days)
-3. Compute the 20‑day average demand over the event’s time window【106788555196366†L136-L143】.
-4. Compute the load‑adjustment factor using the 22:00–24:00 window【106788555196366†L141-L147】.
+1. Verify the event day falls within one of the provided DR periods and allowed time windows.
+2. Locate the 20 most recent qualifying days prior to the event (start‑exclusive/end‑inclusive, excluding weekends、離峰日、任何抑低期間內的日期)，回溯至上一個 11/1。
+3. Compute the 20‑day average demand over the event’s time window.
+4. Compute the load‑adjustment factor using the 22:00–24:00 window.
 5. Return a JSON response containing the baseline kW, the list of dates used as baseline sources and intermediate calculation details.
 
 Example using the bundled sample data:
@@ -76,6 +77,7 @@ jq '{
   event_start: "2025-07-01T16:00:00+08:00",
   event_end: "2025-07-01T22:00:00+08:00",
   contract_capacity_kw: 120,
+  dr_periods: [{start: "2025-07", end: "2025-10"}],
   records: .records
 }' sample_meter_data.json > day_select_cbl.json
 

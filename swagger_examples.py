@@ -58,6 +58,7 @@ DAY_SELECT_REQUIRED_REQUEST_EXAMPLE = {
     "event_start": DAY_SELECT_REWARD_REQUEST_EXAMPLE["event_start"],
     "event_end": DAY_SELECT_REWARD_REQUEST_EXAMPLE["event_end"],
     "batch_time_tariff": DAY_SELECT_REWARD_REQUEST_EXAMPLE.get("batch_time_tariff", False),
+    "dr_periods": DAY_SELECT_REWARD_REQUEST_EXAMPLE.get("dr_periods", []),
     "min_baseline_days": 20,
 }
 DAY_SELECT_REQUIRED_REQUEST_POST_EXAMPLE = {
@@ -65,6 +66,7 @@ DAY_SELECT_REQUIRED_REQUEST_POST_EXAMPLE = {
     "event_start": DAY_SELECT_REWARD_REQUEST_EXAMPLE["event_start"],
     "event_end": DAY_SELECT_REWARD_REQUEST_EXAMPLE["event_end"],
     "batch_time_tariff": DAY_SELECT_REWARD_REQUEST_EXAMPLE.get("batch_time_tariff", False),
+    "dr_periods": DAY_SELECT_REWARD_REQUEST_EXAMPLE.get("dr_periods", []),
 }
 
 GUARANTEED_CBL_REQUEST_EXAMPLE = _load_sample("guaranteed_cbl_correct.json")
@@ -90,6 +92,7 @@ def _build_day_select_cbl_response():
         batch_time_tariff=req.batch_time_tariff,
         assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
+        dr_periods=req.dr_periods,
     )
     return resp.model_dump()
 
@@ -105,6 +108,7 @@ def _build_day_select_reward_response():
         assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
         committed_capacity_kw=req.committed_capacity_kw,
+        dr_periods=req.dr_periods,
     )
     return resp.model_dump()
 
@@ -120,6 +124,7 @@ def _build_day_select_reduction_response():
         assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
         committed_capacity_kw=req.committed_capacity_kw,
+        dr_periods=req.dr_periods,
     )
     return resp.model_dump()
 
@@ -134,6 +139,7 @@ def _build_day_select_cbl_error():
         batch_time_tariff=req.batch_time_tariff,
         assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
+        dr_periods=req.dr_periods,
     )
     raise RuntimeError("預期錯誤示例，但計算成功")
 
@@ -149,6 +155,7 @@ def _build_day_select_reward_error():
         assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
         committed_capacity_kw=req.committed_capacity_kw,
+        dr_periods=req.dr_periods,
     )
     raise RuntimeError("預期錯誤示例，但計算成功")
 
@@ -164,6 +171,7 @@ def _build_day_select_reduction_error():
         assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
         committed_capacity_kw=req.committed_capacity_kw,
+        dr_periods=req.dr_periods,
     )
     raise RuntimeError("預期錯誤示例，但計算成功")
 

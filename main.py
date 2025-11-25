@@ -90,6 +90,7 @@ def api_day_select_cbl(req: DaySelectCBLRequest = Body(..., example=DAY_SELECT_C
         batch_time_tariff=req.batch_time_tariff,
         assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
+        dr_periods=req.dr_periods,
     )
 
 
@@ -112,6 +113,7 @@ def api_day_select_reward(req: DaySelectRewardRequest = Body(..., example=DAY_SE
         assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
         committed_capacity_kw=req.committed_capacity_kw,
+        dr_periods=req.dr_periods,
     )
 
 
@@ -134,6 +136,7 @@ def api_day_select_reduction(req: DaySelectReductionRequest = Body(..., example=
         assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
         committed_capacity_kw=req.committed_capacity_kw,
+        dr_periods=req.dr_periods,
     )
 
 
@@ -215,6 +218,7 @@ def api_day_select_required_records_pre(req: DaySelectRequiredRequest = Body(...
         event_end=req.event_end,
         batch_time_tariff=req.batch_time_tariff,
         min_baseline_days=req.min_baseline_days,
+        dr_periods=req.dr_periods,
     )
 
 
@@ -231,6 +235,7 @@ def api_day_select_required_records_reward(req: DaySelectRequiredRequest = Body(
         event_start=req.event_start,
         event_end=req.event_end,
         batch_time_tariff=req.batch_time_tariff,
+        dr_periods=req.dr_periods,
     )
 
 

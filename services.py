@@ -1,11 +1,12 @@
 from datetime import datetime, timedelta, time, date
 from decimal import Decimal, ROUND_HALF_UP
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import pytz
 from fastapi import HTTPException
 
 from schemas import (
+    DRPeriod,
     DaySelectCBLResponse,
     DaySelectReductionResponse,
     DaySelectRewardResponse,
@@ -48,10 +49,41 @@ def is_off_peak_day(d: date) -> bool:
     return d.weekday() >= 5
 
 
-def is_in_day_select_season(d: date) -> bool:
-    return (d.month > 5 or (d.month == 5 and d.day >= 1)) and (
-        d.month < 10 or (d.month == 10 and d.day <= 31)
-    )
+def parse_dr_periods(dr_periods: List[DRPeriod]) -> List[Tuple[date, date]]:
+    parsed: List[Tuple[date, date]] = []
+    for p in dr_periods:
+        def _parse_one(s: str, is_start: bool) -> date:
+            parts = s.split("-")
+            if len(parts) == 2:
+                y, m = map(int, parts)
+                if is_start:
+                    return date(y, m, 1)
+                if m == 12:
+                    return date(y, 12, 31)
+                from calendar import monthrange
+                last_day = monthrange(y, m)[1]
+                return date(y, m, last_day)
+            if len(parts) == 3:
+                y, m, d = map(int, parts)
+                return date(y, m, d)
+            raise HTTPException(400, f"dr_periods 日期格式錯誤：{s}")
+
+        start_d = _parse_one(p.start, True)
+        end_d = _parse_one(p.end, False)
+        if end_d < start_d:
+            raise HTTPException(400, f"dr_periods 起訖順序錯誤：{p.start} - {p.end}")
+        parsed.append((start_d, end_d))
+    return parsed
+
+
+def is_in_dr_period(target: date, dr_periods: List[Tuple[date, date]]) -> bool:
+    return any(s <= target <= e for s, e in dr_periods)
+
+
+def previous_november_first(event_date: date) -> date:
+    if event_date.month > 11 or (event_date.month == 11 and event_date.day > 1):
+        return date(event_date.year, 11, 1)
+    return date(event_date.year - 1, 11, 1)
 
 
 def get_customer_records(records: List[MeterRecord], customer_id: str) -> List[MeterRecord]:
@@ -239,6 +271,7 @@ def compute_day_select_cbl(
     batch_time_tariff: bool = False,
     assumed_af_kw: Optional[float] = None,
     contract_capacity_kw: Optional[float] = None,
+    dr_periods: Optional[List[DRPeriod]] = None,
     min_baseline_days: int = 20,
 ):
     event_start, event_end = _normalize_day_select_window(event_start, event_end, batch_time_tariff)
@@ -250,11 +283,11 @@ def compute_day_select_cbl(
 
     event_date = event_start.date()
 
-    if not is_in_day_select_season(event_date):
-        raise HTTPException(
-            400,
-            "事件日期不在日選期間（5月1日至10月31日）內",
-        )
+    if not dr_periods:
+        raise HTTPException(400, "dr_periods 必填")
+    dr_period_ranges = parse_dr_periods(dr_periods)
+    if not is_in_dr_period(event_date, dr_period_ranges):
+        raise HTTPException(400, "事件日期未落在合約約定的抑低期間")
 
     _validate_day_select_event_window(event_start, event_end, batch_time_tariff)
 
@@ -262,28 +295,26 @@ def compute_day_select_cbl(
 
     baseline_days: List[date] = []
     current_day = event_date - timedelta(days=1)
-    searched = 0
-    search_limit = 90
+    boundary = previous_november_first(event_date)
     event_start_t = event_start.time()
     event_end_t = event_end.time()
     allowed_windows = []
 
-    while len(baseline_days) < min_baseline_days and searched < search_limit:
+    while len(baseline_days) < min_baseline_days and current_day >= boundary:
         if (
             not is_weekend(current_day)
             and not is_off_peak_day(current_day)
-            and is_in_day_select_season(current_day)
+            and not is_in_dr_period(current_day, dr_period_ranges)
         ):
             r = filter_records_by_time_window(customer_records, current_day, event_start_t, event_end_t)
             if r:
                 baseline_days.append(current_day)
         current_day -= timedelta(days=1)
-        searched += 1
 
     if len(baseline_days) < min_baseline_days:
         raise HTTPException(
             400,
-            f"資料不足以形成前 {min_baseline_days} 個合格日，只找到 {len(baseline_days)} 日",
+            f"資料不足以形成前 {min_baseline_days} 個合格日（已回溯至上一個 11/1），只找到 {len(baseline_days)} 日",
         )
 
     event_window_avgs = []
@@ -375,6 +406,7 @@ def compute_day_select_reward(
     contract_capacity_kw: Optional[float] = None,
     batch_time_tariff: bool = False,
     assumed_af_kw: Optional[float] = None,
+    dr_periods: Optional[List[DRPeriod]] = None,
     min_baseline_days: int = 20,
 ):
     _validate_day_select_capacity(contract_capacity_kw, committed_capacity_kw)
@@ -387,6 +419,7 @@ def compute_day_select_reward(
         batch_time_tariff=batch_time_tariff,
         assumed_af_kw=assumed_af_kw,
         contract_capacity_kw=contract_capacity_kw,
+        dr_periods=dr_periods,
         min_baseline_days=min_baseline_days,
     )
     cbl_kw = cbl_resp.cbl_kw
@@ -487,6 +520,7 @@ def compute_day_select_reduction(
     assumed_af_kw: Optional[float] = None,
     contract_capacity_kw: Optional[float] = None,
     committed_capacity_kw: Optional[float] = None,
+    dr_periods: Optional[List[DRPeriod]] = None,
     min_baseline_days: int = 20,
 ):
     _validate_day_select_capacity(contract_capacity_kw, committed_capacity_kw)
@@ -499,6 +533,7 @@ def compute_day_select_reduction(
         batch_time_tariff=batch_time_tariff,
         assumed_af_kw=assumed_af_kw,
         contract_capacity_kw=contract_capacity_kw,
+        dr_periods=dr_periods,
         min_baseline_days=min_baseline_days,
     )
     cbl_kw = cbl_resp.cbl_kw
@@ -834,31 +869,33 @@ def build_day_select_required_windows(
     event_start: datetime,
     event_end: datetime,
     batch_time_tariff: bool = False,
+    dr_periods: Optional[List[DRPeriod]] = None,
     min_baseline_days: int = 20,
 ) -> DaySelectRequiredPreResponse:
     event_start, event_end = _normalize_day_select_window(event_start, event_end, batch_time_tariff)
     if event_end <= event_start:
         raise HTTPException(400, "event_end 必須晚於 event_start")
     event_date = event_start.date()
-    if not is_in_day_select_season(event_date):
-        raise HTTPException(400, "事件日期不在日選期間（5月1日至10月31日）內")
     _validate_day_select_event_window(event_start, event_end, batch_time_tariff)
+    if not dr_periods:
+        raise HTTPException(400, "dr_periods 必填")
+    dr_period_ranges = parse_dr_periods(dr_periods)
+    if not is_in_dr_period(event_date, dr_period_ranges):
+        raise HTTPException(400, "事件日期未落在合約約定的抑低期間")
 
     baseline_days: List[date] = []
     current_day = event_date - timedelta(days=1)
-    searched = 0
-    search_limit = 90
-    while len(baseline_days) < min_baseline_days and searched < search_limit:
+    boundary = previous_november_first(event_date)
+    while len(baseline_days) < min_baseline_days and current_day >= boundary:
         if (
             not is_weekend(current_day)
             and not is_off_peak_day(current_day)
-            and is_in_day_select_season(current_day)
+            and not is_in_dr_period(current_day, dr_period_ranges)
         ):
             baseline_days.append(current_day)
         current_day -= timedelta(days=1)
-        searched += 1
     if len(baseline_days) < min_baseline_days:
-        raise HTTPException(400, f"資料不足以形成前 {min_baseline_days} 個合格日，只找到 {len(baseline_days)} 日")
+        raise HTTPException(400, f"資料不足以形成前 {min_baseline_days} 個合格日（已回溯至上一個 11/1），只找到 {len(baseline_days)} 日")
 
     windows: List[RequiredWindow] = []
     event_start_t = event_start.time()
@@ -892,9 +929,10 @@ def build_day_select_required_windows_post(
     event_start: datetime,
     event_end: datetime,
     batch_time_tariff: bool = False,
+    dr_periods: Optional[List[DRPeriod]] = None,
 ) -> DaySelectRequiredPostResponse:
     # 回傳全集：CBL 需求視窗（含基準日/事件日 22:00-24:00）＋事件時段
-    pre = build_day_select_required_windows(customer_id, event_start, event_end, batch_time_tariff, 20)
+    pre = build_day_select_required_windows(customer_id, event_start, event_end, batch_time_tariff, dr_periods, 20)
     return DaySelectRequiredPostResponse(customer_id=customer_id, windows=pre.windows)
 
 
