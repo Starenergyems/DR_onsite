@@ -202,8 +202,8 @@ def _validate_guaranteed_capacity(contract_capacity_kw: float, committed_capacit
         raise HTTPException(400, "約定抑低契約容量不可大於經常契約容量")
 
 
-def _validate_day_select_capacity(contract_capacity_kw: Optional[float], committed_capacity_kw: Optional[float] = None):
-    if contract_capacity_kw is not None and contract_capacity_kw < 100:
+def _validate_day_select_capacity(contract_capacity_kw: float, committed_capacity_kw: Optional[float] = None):
+    if contract_capacity_kw < 100:
         raise HTTPException(400, "日選型經常契約容量須達 100 瓩以上")
     if committed_capacity_kw is not None and committed_capacity_kw < 20:
         raise HTTPException(400, "日選型最低約定抑低契約容量須達 20 瓩")
@@ -270,7 +270,7 @@ def compute_day_select_cbl(
     records: List[MeterRecord],
     batch_time_tariff: bool = False,
     assumed_af_kw: Optional[float] = None,
-    contract_capacity_kw: Optional[float] = None,
+    contract_capacity_kw: float,
     dr_periods: Optional[List[DRPeriod]] = None,
     min_baseline_days: int = 20,
 ):
@@ -403,7 +403,7 @@ def compute_day_select_reward(
     event_end: datetime,
     records: List[MeterRecord],
     committed_capacity_kw: float,
-    contract_capacity_kw: Optional[float] = None,
+    contract_capacity_kw: float,
     batch_time_tariff: bool = False,
     assumed_af_kw: Optional[float] = None,
     dr_periods: Optional[List[DRPeriod]] = None,
@@ -518,8 +518,8 @@ def compute_day_select_reduction(
     records: List[MeterRecord],
     batch_time_tariff: bool = False,
     assumed_af_kw: Optional[float] = None,
-    contract_capacity_kw: Optional[float] = None,
-    committed_capacity_kw: Optional[float] = None,
+    contract_capacity_kw: float,
+    committed_capacity_kw: float,
     dr_periods: Optional[List[DRPeriod]] = None,
     min_baseline_days: int = 20,
 ):

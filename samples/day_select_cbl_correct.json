@@ -3371,5 +3371,6 @@
       "start": "2025-07-01",
       "end": "2025-10-31"
     }
-  ]
+  ],
+  "batch_time_tariff": false
 }

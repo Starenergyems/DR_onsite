@@ -22,12 +22,12 @@ class DaySelectCBLRequest(BaseModel):
     customer_id: str
     event_start: datetime
     event_end: datetime
-    batch_time_tariff: bool = Field(False, description="是否選用批次生產時間電價（固定 15:30-21:30）")
+    batch_time_tariff: bool = Field(..., description="是否選用批次生產時間電價（固定 15:30-21:30）")
     assumed_af_kw: Optional[float] = Field(
         None, description="若在事件前計算 CBL，可預估事件日 22:00-24:00 平均需量（用於 AF），未提供則以 0 計算 AF"
     )
     records: List[MeterRecord]
-    contract_capacity_kw: Optional[float] = None
+    contract_capacity_kw: float
     dr_periods: List[DRPeriod] = Field(..., description="與台電簽訂的抑低期間清單，起訖含當日")
 
 
@@ -45,12 +45,12 @@ class DaySelectRewardRequest(BaseModel):
     customer_id: str
     event_start: datetime
     event_end: datetime
-    batch_time_tariff: bool = Field(False, description="是否選用批次生產時間電價（固定 15:30-21:30）")
+    batch_time_tariff: bool = Field(..., description="是否選用批次生產時間電價（固定 15:30-21:30）")
     assumed_af_kw: Optional[float] = Field(
         None, description="事件前可預估 22:00-24:00 平均需量（用於 AF）；未提供則 AF 預設 0"
     )
     records: List[MeterRecord]
-    contract_capacity_kw: Optional[float] = None
+    contract_capacity_kw: float
     committed_capacity_kw: float
     dr_periods: List[DRPeriod] = Field(..., description="與台電簽訂的抑低期間清單，起訖含當日")
 
@@ -77,13 +77,13 @@ class DaySelectReductionRequest(BaseModel):
     customer_id: str
     event_start: datetime
     event_end: datetime
-    batch_time_tariff: bool = Field(False, description="是否選用批次生產時間電價（固定 15:30-21:30）")
+    batch_time_tariff: bool = Field(..., description="是否選用批次生產時間電價（固定 15:30-21:30）")
     assumed_af_kw: Optional[float] = Field(
         None, description="事件前可預估 22:00-24:00 平均需量（用於 AF）；未提供則 AF 預設 0"
     )
     records: List[MeterRecord]
-    contract_capacity_kw: Optional[float] = None
-    committed_capacity_kw: Optional[float] = None
+    contract_capacity_kw: float
+    committed_capacity_kw: float
     dr_periods: List[DRPeriod] = Field(..., description="與台電簽訂的抑低期間清單，起訖含當日")
 
 
@@ -212,7 +212,7 @@ class DaySelectRequiredRequest(BaseModel):
     customer_id: str
     event_start: datetime
     event_end: datetime
-    batch_time_tariff: bool = False
+    batch_time_tariff: bool
     min_baseline_days: int = 20
     dr_periods: List[DRPeriod]
 

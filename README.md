@@ -55,8 +55,9 @@ Compute the CBL for a given DR event.  The request body must include:
 - `customer_id` – ID of the customer
 - `event_start` – start time of the DR event (ISO 8601 with time zone)
 - `event_end`   – end time of the DR event (must be later than the start time)
+- `batch_time_tariff` – whether to use the batch-time tariff window (fixed 15:30–21:30)
 - `records` – 15-minute meter records covering the baseline weekdays’ event windows, their 22:00–24:00 windows, and the event day’s event/22:00–24:00 windows.
-- `contract_capacity_kw` – the participant’s contract capacity in kW (CBL2).  If provided, the final CBL will be the smaller of `CBL1 + AF` and this contract capacity
+- `contract_capacity_kw` – the participant’s contract capacity in kW (CBL2).  The final CBL is the smaller of `CBL1 + AF` and this contract capacity
 - `dr_periods` – list of contract DR periods, each with `start`/`end` (YYYY-MM or YYYY-MM-DD). Event day must lie within one of these periods.
 - Optional: `assumed_af_kw` – if computing before the event and you do not have event-day 22:00–24:00 data, provide an assumed average (used for AF); otherwise AF uses actual data.
 
@@ -76,6 +77,7 @@ jq '{
   customer_id: "C001",
   event_start: "2025-07-01T16:00:00+08:00",
   event_end: "2025-07-01T22:00:00+08:00",
+  batch_time_tariff: false,
   contract_capacity_kw: 120,
   dr_periods: [{start: "2025-07", end: "2025-10"}],
   records: .records
@@ -127,7 +129,7 @@ Request fields:
 
 - `customer_id` – ID of the customer.
 - `event_start` / `event_end` – start and end times of the DR event (must be 2–6 hours apart).
-- `contract_capacity_kw` – the participant’s contract capacity (optional).  If provided, it caps the CBL as in the baseline calculation.
+- `contract_capacity_kw` – the participant’s contract capacity (CBL2)。最終 CBL 取 `min(CBL1+AF, contract_capacity_kw)`。
  - `committed_capacity_kw` – the participant’s **committed reduction capacity** (optional).  If provided, the endpoint will compute an **execution rate** (actual reduction ÷ committed capacity) and a **reduction ratio** following the day‑select reward table (0, 0.8, 1.0, 1.2).
 
 The response includes the baseline (`cbl_kw`), the actual average demand during the event, the actual reduction, and—if `committed_capacity_kw` is provided—the **execution rate** and **reduction ratio**.  It also returns the list of baseline source days and a `detail` object containing intermediate values such as `cbl1_kw`, `af_kw`, `hist_adjust_avg_kw`, `today_adjust_avg_kw`, and, when applicable, `execution_rate` and `reduction_ratio`.
