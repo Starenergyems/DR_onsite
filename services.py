@@ -154,12 +154,7 @@ def _build_window_range(base_date: date, start_t: time, end_t: time) -> (datetim
 def _normalize_day_select_window(event_start: datetime, event_end: datetime, batch_time_tariff: bool) -> (datetime, datetime):
     start = to_taipei(event_start)
     end = to_taipei(event_end)
-    if not batch_time_tariff:
-        return start, end
-    event_date = start.date()
-    start_dt = to_taipei(datetime.combine(event_date, time(15, 30)))
-    end_dt = to_taipei(datetime.combine(event_date, time(21, 30)))
-    return start_dt, end_dt
+    return start, end
 
 
 def _validate_day_select_event_window(event_start: datetime, event_end: datetime, batch_time_tariff: bool):
