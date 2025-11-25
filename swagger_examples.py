@@ -88,7 +88,7 @@ def _build_day_select_cbl_response():
         event_end=req.event_end,
         records=req.records,
         batch_time_tariff=req.batch_time_tariff,
-        assumed_today_adjust_avg_kw=req.assumed_adjust_avg_kw,
+        assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
     )
     return resp.model_dump()
@@ -102,7 +102,7 @@ def _build_day_select_reward_response():
         event_end=req.event_end,
         records=req.records,
         batch_time_tariff=req.batch_time_tariff,
-        assumed_today_adjust_avg_kw=req.assumed_adjust_avg_kw,
+        assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
         committed_capacity_kw=req.committed_capacity_kw,
     )
@@ -117,7 +117,7 @@ def _build_day_select_reduction_response():
         event_end=req.event_end,
         records=req.records,
         batch_time_tariff=req.batch_time_tariff,
-        assumed_today_adjust_avg_kw=req.assumed_adjust_avg_kw,
+        assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
         committed_capacity_kw=req.committed_capacity_kw,
     )
@@ -132,7 +132,7 @@ def _build_day_select_cbl_error():
         event_end=req.event_end,
         records=req.records,
         batch_time_tariff=req.batch_time_tariff,
-        assumed_today_adjust_avg_kw=req.assumed_adjust_avg_kw,
+        assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
     )
     raise RuntimeError("預期錯誤示例，但計算成功")
@@ -146,7 +146,7 @@ def _build_day_select_reward_error():
         event_end=req.event_end,
         records=req.records,
         batch_time_tariff=req.batch_time_tariff,
-        assumed_today_adjust_avg_kw=req.assumed_adjust_avg_kw,
+        assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
         committed_capacity_kw=req.committed_capacity_kw,
     )
@@ -161,7 +161,7 @@ def _build_day_select_reduction_error():
         event_end=req.event_end,
         records=req.records,
         batch_time_tariff=req.batch_time_tariff,
-        assumed_today_adjust_avg_kw=req.assumed_adjust_avg_kw,
+        assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
         committed_capacity_kw=req.committed_capacity_kw,
     )

@@ -88,7 +88,7 @@ def api_day_select_cbl(req: DaySelectCBLRequest = Body(..., example=DAY_SELECT_C
         event_end=req.event_end,
         records=req.records,
         batch_time_tariff=req.batch_time_tariff,
-        assumed_today_adjust_avg_kw=req.assumed_adjust_avg_kw,
+        assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
     )
 
@@ -109,7 +109,7 @@ def api_day_select_reward(req: DaySelectRewardRequest = Body(..., example=DAY_SE
         event_end=req.event_end,
         records=req.records,
         batch_time_tariff=req.batch_time_tariff,
-        assumed_today_adjust_avg_kw=req.assumed_adjust_avg_kw,
+        assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
         committed_capacity_kw=req.committed_capacity_kw,
     )
@@ -131,7 +131,7 @@ def api_day_select_reduction(req: DaySelectReductionRequest = Body(..., example=
         event_end=req.event_end,
         records=req.records,
         batch_time_tariff=req.batch_time_tariff,
-        assumed_today_adjust_avg_kw=req.assumed_adjust_avg_kw,
+        assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
         committed_capacity_kw=req.committed_capacity_kw,
     )

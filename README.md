@@ -57,7 +57,7 @@ Compute the CBL for a given DR event.  The request body must include:
 - `event_end`   – end time of the DR event (must be later than the start time)
 - `records` – 15-minute meter records covering the baseline weekdays’ event windows, their 22:00–24:00 windows, and the event day’s event/22:00–24:00 windows.
 - `contract_capacity_kw` – the participant’s contract capacity in kW (CBL2).  If provided, the final CBL will be the smaller of `CBL1 + AF` and this contract capacity
-- Optional: `assumed_adjust_avg_kw` – if computing before the event and you do not have event-day 22:00–24:00 data, provide an assumed average; otherwise AF uses actual data.
+- Optional: `assumed_af_kw` – if computing before the event and you do not have event-day 22:00–24:00 data, provide an assumed average (used for AF); otherwise AF uses actual data.
 
 
 When called, the endpoint will:
@@ -192,7 +192,7 @@ Request fields:
 - `records` – 15-minute meter records (same coverage as `/dr/day-select/cbl`)
 - `contract_capacity_kw` – the customer’s contract capacity (CBL2) used in the CBL calculation
 - `committed_capacity_kw` – the committed reduction capacity (約定抑低契約容量) used for the reward formula
-- Optional: `assumed_adjust_avg_kw` – provide an assumed 22:00–24:00 average if calculating before event-day data is available.
+- Optional: `assumed_af_kw` – provide an assumed 22:00–24:00 average if calculating before event-day data is available (used for AF).
 
 Example (using the sample payload built above):
 
@@ -371,7 +371,7 @@ The endpoint calculates, for each event, the baseline, reduction, execution rate
 ## Samples
 
 Sample payloads live in `samples/`:
-- Day-select CBL pre-event: `samples/day_select_cbl_correct.json` (valid; uses `assumed_adjust_avg_kw`, baseline-only records) and `samples/day_select_cbl_wrong.json` (invalid: missing a baseline slot).
+- Day-select CBL pre-event: `samples/day_select_cbl_correct.json` (valid; uses `assumed_af_kw`, baseline-only records) and `samples/day_select_cbl_wrong.json` (invalid: missing a baseline slot).
 - Day-select reward/reduction post-event: `samples/day_select_reward_correct.json` (valid) and `samples/day_select_reward_wrong.json` (invalid: missing an event-window slot).
 - Guaranteed CBL pre-event: `samples/guaranteed_cbl_correct.json` (valid) and `samples/guaranteed_cbl_wrong.json` (invalid: misaligned timestamp).
 - Guaranteed reward/reduction post-event: `samples/guaranteed_reward_correct.json` (valid) and `samples/guaranteed_reward_wrong.json` (invalid: missing an event-window slot).
@@ -402,7 +402,7 @@ curl -X POST http://localhost:18000/dr/guaranteed/reward \
 
 ## Sample Calls and Expected Results
 
-- `samples/day_select_cbl_correct.json` → `POST /dr/day-select/cbl`: 200 OK. `cbl_kw` ~100 (AF ≈ 0 because assumed_adjust_avg_kw=95 is below hist adjust). Baseline dates list returned.
+- `samples/day_select_cbl_correct.json` → `POST /dr/day-select/cbl`: 200 OK. `cbl_kw` ~100 (AF ≈ 0 because assumed_af_kw=95 is below hist adjust). Baseline dates list returned.
 - `samples/day_select_cbl_wrong.json` → `POST /dr/day-select/cbl`: 400 with message like `缺少 ... 15 分鐘區間` (baseline window gap).
 - `samples/day_select_reward_correct.json` → `POST /dr/day-select/reward`: 200 OK. `cbl_kw` ~100; event avg < baseline so positive `actual_reduction_kw`; execution_rate based on committed=100.
 - `samples/day_select_reward_wrong.json` → `POST /dr/day-select/reward`: 400 with message like `事件日 ... 缺少 ... 15 分鐘區間` (event window gap).

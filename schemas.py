@@ -18,8 +18,8 @@ class DaySelectCBLRequest(BaseModel):
     event_start: datetime
     event_end: datetime
     batch_time_tariff: bool = Field(False, description="是否選用批次生產時間電價（固定 15:30-21:30）")
-    assumed_adjust_avg_kw: Optional[float] = Field(
-        None, description="若在事件前計算 CBL，可假設事件日 22:00-24:00 平均需量，未提供則以 0 計算 AF"
+    assumed_af_kw: Optional[float] = Field(
+        None, description="若在事件前計算 CBL，可預估事件日 22:00-24:00 平均需量（用於 AF），未提供則以 0 計算 AF"
     )
     records: List[MeterRecord]
     contract_capacity_kw: Optional[float] = None
@@ -40,8 +40,8 @@ class DaySelectRewardRequest(BaseModel):
     event_start: datetime
     event_end: datetime
     batch_time_tariff: bool = Field(False, description="是否選用批次生產時間電價（固定 15:30-21:30）")
-    assumed_adjust_avg_kw: Optional[float] = Field(
-        None, description="事件前可提供假設之 22:00-24:00 平均需量；未提供則 AF 預設 0"
+    assumed_af_kw: Optional[float] = Field(
+        None, description="事件前可預估 22:00-24:00 平均需量（用於 AF）；未提供則 AF 預設 0"
     )
     records: List[MeterRecord]
     contract_capacity_kw: Optional[float] = None
@@ -71,8 +71,8 @@ class DaySelectReductionRequest(BaseModel):
     event_start: datetime
     event_end: datetime
     batch_time_tariff: bool = Field(False, description="是否選用批次生產時間電價（固定 15:30-21:30）")
-    assumed_adjust_avg_kw: Optional[float] = Field(
-        None, description="事件前可提供假設之 22:00-24:00 平均需量；未提供則 AF 預設 0"
+    assumed_af_kw: Optional[float] = Field(
+        None, description="事件前可預估 22:00-24:00 平均需量（用於 AF）；未提供則 AF 預設 0"
     )
     records: List[MeterRecord]
     contract_capacity_kw: Optional[float] = None

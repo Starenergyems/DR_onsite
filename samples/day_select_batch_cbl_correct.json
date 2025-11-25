@@ -4,7 +4,7 @@
   "event_end": "2025-07-01T21:30:00+08:00",
   "batch_time_tariff": true,
   "contract_capacity_kw": 120,
-  "assumed_adjust_avg_kw": 95.0,
+  "assumed_af_kw": 95.0,
   "records": [
     {
       "customer_id": "C001",

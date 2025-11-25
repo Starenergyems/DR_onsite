@@ -237,7 +237,7 @@ def compute_day_select_cbl(
     event_end: datetime,
     records: List[MeterRecord],
     batch_time_tariff: bool = False,
-    assumed_today_adjust_avg_kw: Optional[float] = None,
+    assumed_af_kw: Optional[float] = None,
     contract_capacity_kw: Optional[float] = None,
     min_baseline_days: int = 20,
 ):
@@ -318,8 +318,8 @@ def compute_day_select_cbl(
 
     event_adjust_start_dt, event_adjust_end_dt = _build_window_range(event_date, adjust_start, adjust_end)
     assumed_adjust_used = False
-    if assumed_today_adjust_avg_kw is not None:
-        today_adjust_avg = assumed_today_adjust_avg_kw
+    if assumed_af_kw is not None:
+        today_adjust_avg = assumed_af_kw
         assumed_adjust_used = True
     else:
         _ensure_full_window(customer_records, event_adjust_start_dt, event_adjust_end_dt, f"事件日 {event_date} 22:00-24:00")
@@ -350,7 +350,7 @@ def compute_day_select_cbl(
         "today_adjust_avg_kw": today_adjust_avg,
     }
     if assumed_adjust_used:
-        detail["assumed_today_adjust_avg_kw"] = assumed_today_adjust_avg_kw
+        detail["assumed_af_kw"] = assumed_af_kw
 
     return DaySelectCBLResponse(
         customer_id=customer_id,
@@ -374,7 +374,7 @@ def compute_day_select_reward(
     committed_capacity_kw: float,
     contract_capacity_kw: Optional[float] = None,
     batch_time_tariff: bool = False,
-    assumed_today_adjust_avg_kw: Optional[float] = None,
+    assumed_af_kw: Optional[float] = None,
     min_baseline_days: int = 20,
 ):
     _validate_day_select_capacity(contract_capacity_kw, committed_capacity_kw)
@@ -385,7 +385,7 @@ def compute_day_select_reward(
         event_end=event_end,
         records=records,
         batch_time_tariff=batch_time_tariff,
-        assumed_today_adjust_avg_kw=assumed_today_adjust_avg_kw,
+        assumed_af_kw=assumed_af_kw,
         contract_capacity_kw=contract_capacity_kw,
         min_baseline_days=min_baseline_days,
     )
@@ -484,7 +484,7 @@ def compute_day_select_reduction(
     event_end: datetime,
     records: List[MeterRecord],
     batch_time_tariff: bool = False,
-    assumed_today_adjust_avg_kw: Optional[float] = None,
+    assumed_af_kw: Optional[float] = None,
     contract_capacity_kw: Optional[float] = None,
     committed_capacity_kw: Optional[float] = None,
     min_baseline_days: int = 20,
@@ -497,7 +497,7 @@ def compute_day_select_reduction(
         event_end=event_end,
         records=records,
         batch_time_tariff=batch_time_tariff,
-        assumed_today_adjust_avg_kw=assumed_today_adjust_avg_kw,
+        assumed_af_kw=assumed_af_kw,
         contract_capacity_kw=contract_capacity_kw,
         min_baseline_days=min_baseline_days,
     )
@@ -877,7 +877,7 @@ def build_day_select_required_windows(
     adj_start_dt, adj_end_dt = _build_window_range(event_date, adjust_start, adjust_end)
     windows.append(
         RequiredWindow(
-            label=f"事件日 {event_date} 22:00-24:00（若未提供 assumed_adjust_avg_kw 則必填）",
+            label=f"事件日 {event_date} 22:00-24:00（若未提供 assumed_af_kw 則必填）",
             start=adj_start_dt,
             end=adj_end_dt,
             optional=True,
