@@ -129,8 +129,12 @@ Request fields:
 
 - `customer_id` – ID of the customer.
 - `event_start` / `event_end` – start and end times of the DR event (must be 2–6 hours apart).
+- `batch_time_tariff` – whether to use the batch-time tariff window (fixed 15:30–21:30).
+- `records` – 15-minute meter records covering baseline/event windows and adjustment windows.
 - `contract_capacity_kw` – the participant’s contract capacity (CBL2)。最終 CBL 取 `min(CBL1+AF, contract_capacity_kw)`。
- - `committed_capacity_kw` – the participant’s **committed reduction capacity** (optional).  If provided, the endpoint will compute an **execution rate** (actual reduction ÷ committed capacity) and a **reduction ratio** following the day‑select reward table (0, 0.8, 1.0, 1.2).
+- `committed_capacity_kw` – the participant’s **committed reduction capacity**（必填）。用於計算執行率與減載比率。
+- `dr_periods` – list of contract DR periods, each with `start`/`end` (YYYY-MM or YYYY-MM-DD). Event day must lie within one of these periods.
+- Optional: `assumed_af_kw` – provide an assumed 22:00–24:00 average if calculating before event-day data is available (used for AF).
 
 The response includes the baseline (`cbl_kw`), the actual average demand during the event, the actual reduction, and—if `committed_capacity_kw` is provided—the **execution rate** and **reduction ratio**.  It also returns the list of baseline source days and a `detail` object containing intermediate values such as `cbl1_kw`, `af_kw`, `hist_adjust_avg_kw`, `today_adjust_avg_kw`, and, when applicable, `execution_rate` and `reduction_ratio`.
 
@@ -163,8 +167,10 @@ jq '{
   customer_id: "C001",
   event_start: "2025-07-01T16:00:00+08:00",
   event_end: "2025-07-01T22:00:00+08:00",
+  batch_time_tariff: false,
   contract_capacity_kw: 120,
   committed_capacity_kw: 100,
+  dr_periods: [{start: "2025-07", end: "2025-10"}],
   records: .records
 }' sample_meter_data.json > day_select_reward.json
 
@@ -193,9 +199,11 @@ Request fields:
 
 - `customer_id` – ID of the customer
 - `event_start` / `event_end` – start and end times of the DR event (must be 2, 4 or 6 hours apart)
+- `batch_time_tariff` – whether to use the batch-time tariff window (fixed 15:30–21:30)
 - `records` – 15-minute meter records (same coverage as `/dr/day-select/cbl`)
 - `contract_capacity_kw` – the customer’s contract capacity (CBL2) used in the CBL calculation
 - `committed_capacity_kw` – the committed reduction capacity (約定抑低契約容量) used for the reward formula
+- `dr_periods` – list of contract DR periods, each with `start`/`end` (YYYY-MM or YYYY-MM-DD)
 - Optional: `assumed_af_kw` – provide an assumed 22:00–24:00 average if calculating before event-day data is available (used for AF).
 
 Example (using the sample payload built above):
