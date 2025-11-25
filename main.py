@@ -76,6 +76,7 @@ app = FastAPI(
     "/dr/day-select/cbl",
     response_model=DaySelectCBLResponse,
     description="計算日選方案基準用電 (CBL)，含 CBL1+AF 並套用契約容量上限；需 15 分鐘紀錄、基準日/事件日 22:00-24:00 視窗。",
+    tags=["Day-Select"],
     responses={
         200: {"description": "計算成功", "content": {"application/json": {"example": DAY_SELECT_CBL_RESPONSE_EXAMPLE}}},
         400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_CBL_ERROR_EXAMPLE}}},
@@ -98,6 +99,7 @@ def api_day_select_cbl(req: DaySelectCBLRequest = Body(..., example=DAY_SELECT_C
     "/dr/day-select/reward",
     response_model=DaySelectRewardResponse,
     description="計算日選方案回饋金：先算 CBL/實際抑低，再套用執行率、扣減比率與費率。",
+    tags=["Day-Select"],
     responses={
         200: {"description": "計算成功", "content": {"application/json": {"example": DAY_SELECT_REWARD_RESPONSE_EXAMPLE}}},
         400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_REWARD_ERROR_EXAMPLE}}},
@@ -121,6 +123,7 @@ def api_day_select_reward(req: DaySelectRewardRequest = Body(..., example=DAY_SE
     "/dr/day-select/reduction",
     response_model=DaySelectReductionResponse,
     description="計算日選方案實際抑低容量（含可選執行率/扣減比率），不計算回饋金。",
+    tags=["Day-Select"],
     responses={
         200: {"description": "計算成功", "content": {"application/json": {"example": DAY_SELECT_REDUCTION_RESPONSE_EXAMPLE}}},
         400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_REDUCTION_ERROR_EXAMPLE}}},
@@ -144,6 +147,7 @@ def api_day_select_reduction(req: DaySelectReductionRequest = Body(..., example=
     "/dr/guaranteed/cbl",
     response_model=GuaranteedCBLResponse,
     description="依保證反應型規範與通知提前時間計算事件基準需量 (CBL)。",
+    tags=["Guaranteed"],
     responses={
         200: {"description": "計算成功", "content": {"application/json": {"example": GUARANTEED_CBL_RESPONSE_EXAMPLE}}},
         400: {"description": "請求錯誤", "content": {"application/json": {"example": GUARANTEED_CBL_ERROR_EXAMPLE}}},
@@ -163,6 +167,7 @@ def api_guaranteed_cbl(req: GuaranteedCBLRequest = Body(..., example=GUARANTEED_
     "/dr/guaranteed/reduction",
     response_model=GuaranteedEventResponse,
     description="計算保證反應型單次事件的基準需量、實際抑低容量、執行率與流動/違約費用。",
+    tags=["Guaranteed"],
     responses={
         200: {"description": "計算成功", "content": {"application/json": {"example": GUARANTEED_EVENT_RESPONSE_EXAMPLE}}},
         400: {"description": "請求錯誤", "content": {"application/json": {"example": GUARANTEED_EVENT_ERROR_EXAMPLE}}},
@@ -186,6 +191,7 @@ def api_guaranteed_reduction(req: GuaranteedEventRequest = Body(..., example=GUA
     "/dr/guaranteed/reward",
     response_model=GuaranteedRewardResponse,
     description="彙總本月所有保證反應型事件，計算基本電費與流動電費扣減、違約金與淨回饋。",
+    tags=["Guaranteed"],
     responses={
         200: {"description": "計算成功", "content": {"application/json": {"example": GUARANTEED_REWARD_RESPONSE_EXAMPLE}}},
         400: {"description": "請求錯誤", "content": {"application/json": {"example": GUARANTEED_REWARD_ERROR_EXAMPLE}}},
@@ -207,6 +213,7 @@ def api_guaranteed_reward(req: GuaranteedRewardRequest = Body(..., example=GUARA
 @app.post(
     "/dr/day-select/cbl/required-records",
     response_model=DaySelectRequiredPreResponse,
+    tags=["Day-Select"],
     responses={
         200: {"description": "取得需求時間窗（事件前，用於 CBL 計算）", "content": {"application/json": {"example": DAY_SELECT_REQUIRED_RESPONSE_EXAMPLE}}},
     },
@@ -225,6 +232,7 @@ def api_day_select_required_records_pre(req: DaySelectRequiredRequest = Body(...
 @app.post(
     "/dr/day-select/reward/required-records",
     response_model=DaySelectRequiredPostResponse,
+    tags=["Day-Select"],
     responses={
         200: {"description": "取得需求時間窗（事件後，用於 reward）", "content": {"application/json": {"example": DAY_SELECT_REQUIRED_POST_RESPONSE_EXAMPLE}}},
     },
@@ -242,6 +250,7 @@ def api_day_select_required_records_reward(req: DaySelectRequiredRequest = Body(
 @app.post(
     "/dr/day-select/reduction/required-records",
     response_model=DaySelectRequiredPostResponse,
+    tags=["Day-Select"],
     responses={
         200: {"description": "取得需求時間窗（事件後，用於 reduction）", "content": {"application/json": {"example": DAY_SELECT_REQUIRED_POST_RESPONSE_EXAMPLE}}},
     },
@@ -258,6 +267,7 @@ def api_day_select_required_records_reduction(req: DaySelectRequiredRequest = Bo
 @app.post(
     "/dr/guaranteed/cbl/required-records",
     response_model=GuaranteedRequiredPreResponse,
+    tags=["Guaranteed"],
     responses={
         200: {"description": "取得需求時間窗（事件前，用於 CBL 計算）", "content": {"application/json": {"example": GUARANTEED_REQUIRED_RESPONSE_EXAMPLE}}},
     },
@@ -274,6 +284,7 @@ def api_guaranteed_required_records_pre(req: GuaranteedRequiredRequest = Body(..
 @app.post(
     "/dr/guaranteed/reward/required-records",
     response_model=GuaranteedRequiredPostResponse,
+    tags=["Guaranteed"],
     responses={
         200: {"description": "取得需求時間窗（事件後，用於 reward/reduction）", "content": {"application/json": {"example": GUARANTEED_REQUIRED_POST_RESPONSE_EXAMPLE}}},
     },
@@ -290,6 +301,7 @@ def api_guaranteed_required_records_reward(req: GuaranteedRequiredRequest = Body
 @app.post(
     "/dr/guaranteed/reduction/required-records",
     response_model=GuaranteedRequiredPostResponse,
+    tags=["Guaranteed"],
     responses={
         200: {"description": "取得需求時間窗（事件後，用於 reward/reduction）", "content": {"application/json": {"example": GUARANTEED_REQUIRED_POST_RESPONSE_EXAMPLE}}},
     },
