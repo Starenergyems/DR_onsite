@@ -263,10 +263,10 @@ def compute_day_select_cbl(
     event_start: datetime,
     event_end: datetime,
     records: List[MeterRecord],
-    batch_time_tariff: bool = False,
-    assumed_af_kw: Optional[float] = None,
     contract_capacity_kw: float,
     dr_periods: Optional[List[DRPeriod]] = None,
+    batch_time_tariff: bool = False,
+    assumed_af_kw: Optional[float] = None,
     min_baseline_days: int = 20,
 ):
     event_start, event_end = _normalize_day_select_window(event_start, event_end, batch_time_tariff)
@@ -399,9 +399,9 @@ def compute_day_select_reward(
     records: List[MeterRecord],
     committed_capacity_kw: float,
     contract_capacity_kw: float,
+    dr_periods: Optional[List[DRPeriod]] = None,
     batch_time_tariff: bool = False,
     assumed_af_kw: Optional[float] = None,
-    dr_periods: Optional[List[DRPeriod]] = None,
     min_baseline_days: int = 20,
 ):
     _validate_day_select_capacity(contract_capacity_kw, committed_capacity_kw)
@@ -511,10 +511,10 @@ def compute_day_select_reduction(
     event_start: datetime,
     event_end: datetime,
     records: List[MeterRecord],
-    batch_time_tariff: bool = False,
-    assumed_af_kw: Optional[float] = None,
     contract_capacity_kw: float,
     committed_capacity_kw: float,
+    batch_time_tariff: bool = False,
+    assumed_af_kw: Optional[float] = None,
     dr_periods: Optional[List[DRPeriod]] = None,
     min_baseline_days: int = 20,
 ):
