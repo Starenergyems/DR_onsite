@@ -65,7 +65,7 @@ def filter_records_by_time_window(records, target_date, start_t, end_t):
         ts = to_taipei(r.timestamp)
         if ts.date() != target_date:
             continue
-        if start_t <= ts.time() < end_t:
+        if start_t < ts.time() <= end_t:
             matched.append(r)
     return matched
 
@@ -74,9 +74,9 @@ def filter_records_cross_day(records, target_date, start_t, end_t):
     matched = []
     for r in records:
         ts = to_taipei(r.timestamp)
-        if ts.date() == target_date and ts.time() >= start_t:
+        if ts.date() == target_date and ts.time() > start_t:
             matched.append(r)
-        if ts.date() == (target_date + timedelta(days=1)) and ts.time() < end_t:
+        if ts.date() == (target_date + timedelta(days=1)) and ts.time() <= end_t:
             matched.append(r)
     return matched
 
@@ -189,9 +189,9 @@ def _ensure_full_window(records: List[MeterRecord], start_dt: datetime, end_dt: 
     if duration.total_seconds() % step.total_seconds() != 0:
         raise HTTPException(400, f"{label} 長度非 15 分鐘整數倍")
     expected_slots = int(duration.total_seconds() // step.total_seconds())
-    ts_set = {to_taipei(r.timestamp) for r in records if start_dt <= to_taipei(r.timestamp) < end_dt}
+    ts_set = {to_taipei(r.timestamp) for r in records if start_dt < to_taipei(r.timestamp) <= end_dt}
     missing: List[datetime] = []
-    cursor = start_dt
+    cursor = start_dt + step
     for _ in range(expected_slots):
         if cursor not in ts_set:
             missing.append(cursor)
@@ -204,7 +204,7 @@ def _ensure_full_window(records: List[MeterRecord], start_dt: datetime, end_dt: 
 def _reject_records_outside_windows(records: List[MeterRecord], windows: List[tuple], customer_id: str):
     for r in records:
         ts = to_taipei(r.timestamp)
-        if not any(start <= ts < end for start, end in windows):
+        if not any(start < ts <= end for start, end in windows):
             raise HTTPException(400, f"{customer_id} 包含超出需求時間窗的資料：{ts.isoformat()}")
 
 
@@ -212,7 +212,7 @@ def _filter_records_in_windows(records: List[MeterRecord], windows: List[tuple])
     kept = []
     for r in records:
         ts = to_taipei(r.timestamp)
-        if any(start <= ts < end for start, end in windows):
+        if any(start < ts <= end for start, end in windows):
             kept.append(r)
     return kept
 
@@ -223,7 +223,7 @@ def filter_records_between(records: List[MeterRecord], start_dt: datetime, end_d
     matched: List[MeterRecord] = []
     for r in records:
         ts = to_taipei(r.timestamp)
-        if start_ts <= ts < end_ts:
+        if start_ts < ts <= end_ts:
             matched.append(r)
     return matched
 
