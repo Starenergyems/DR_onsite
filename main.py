@@ -157,9 +157,12 @@ def api_guaranteed_cbl(req: GuaranteedCBLRequest = Body(..., example=GUARANTEED_
     return compute_guaranteed_cbl(
         customer_id=req.customer_id,
         event_start=req.event_start,
+        event_end=req.event_end,
         records=req.records,
         notification_minutes_before=req.notification_minutes_before,
         contract_capacity_kw=req.contract_capacity_kw,
+        committed_capacity_kw=req.committed_capacity_kw,
+        dr_periods=req.dr_periods,
     )
 
 
@@ -184,6 +187,7 @@ def api_guaranteed_reduction(req: GuaranteedEventRequest = Body(..., example=GUA
         records=req.records,
         basic_fee_rate=req.basic_fee_rate,
         flow_fee_rate=req.flow_fee_rate,
+        dr_periods=req.dr_periods,
     )
 
 
@@ -202,11 +206,12 @@ def api_guaranteed_reward(req: GuaranteedRewardRequest = Body(..., example=GUARA
         customer_id=req.customer_id,
         notification_minutes_before=req.notification_minutes_before,
         contract_capacity_kw=req.contract_capacity_kw,
+        committed_capacity_kw=req.committed_capacity_kw,
         events=req.events,
         records=req.records,
-        committed_capacity_kw=req.committed_capacity_kw,
         basic_fee_rate=req.basic_fee_rate,
         flow_fee_rate=req.flow_fee_rate,
+        dr_periods=req.dr_periods,
     )
 
 
@@ -278,6 +283,7 @@ def api_guaranteed_required_records_pre(req: GuaranteedRequiredRequest = Body(..
         event_start=req.event_start,
         event_end=req.event_end,
         notification_minutes_before=req.notification_minutes_before,
+        dr_periods=req.dr_periods,
     )
 
 
@@ -295,6 +301,7 @@ def api_guaranteed_required_records_reward(req: GuaranteedRequiredRequest = Body
         event_start=req.event_start,
         event_end=req.event_end,
         notification_minutes_before=req.notification_minutes_before,
+        dr_periods=req.dr_periods,
     )
 
 
@@ -312,4 +319,5 @@ def api_guaranteed_required_records_reduction(req: GuaranteedRequiredRequest = B
         event_start=req.event_start,
         event_end=req.event_end,
         notification_minutes_before=req.notification_minutes_before,
+        dr_periods=req.dr_periods,
     )

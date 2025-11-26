@@ -183,13 +183,18 @@ def _validate_guaranteed_event_window(event_start: datetime, event_end: datetime
     start_t = event_start.time()
     if not (time(13, 0) <= start_t <= time(22, 0)):
         raise HTTPException(400, "執行起始時間僅允許 13:00-22:00")
+    if event_end <= event_start:
+        raise HTTPException(400, "event_end 必須晚於 event_start")
+    duration_hours = (event_end - event_start).total_seconds() / 3600.0
+    if duration_hours not in (2.0, 3.0, 4.0):
+        raise HTTPException(400, "保證型執行時數僅允許 2、3 或 4 小時")
 
 
 def _validate_guaranteed_capacity(contract_capacity_kw: float, committed_capacity_kw: Optional[float] = None):
-    if contract_capacity_kw < 100:
-        raise HTTPException(400, "經常契約容量須達 100 瓩以上")
+    if contract_capacity_kw < 1000:
+        raise HTTPException(400, "經常契約容量須達 1,000 瓩以上，方可符合最低約定抑低容量要求")
     if committed_capacity_kw is None:
-        return
+        raise HTTPException(400, "約定抑低契約容量必填")
     min_committed = max(1000.0, contract_capacity_kw * 0.15)
     if committed_capacity_kw < min_committed:
         raise HTTPException(400, f"約定抑低契約容量須達 1,000 瓩或經常契約容量的 15% 以上 (最低 {min_committed:.1f} 瓩)")
@@ -596,9 +601,10 @@ def compute_guaranteed_event(
     notification_minutes_before: int,
     contract_capacity_kw: float,
     records: List[MeterRecord],
-    committed_capacity_kw: Optional[float] = None,
+    committed_capacity_kw: float,
     basic_fee_rate: Optional[float] = None,
     flow_fee_rate: Optional[float] = None,
+    dr_periods: Optional[List[DRPeriod]] = None,
 ):
     event_start = to_taipei(event_start)
     event_end = to_taipei(event_end)
@@ -607,6 +613,11 @@ def compute_guaranteed_event(
 
     _validate_guaranteed_event_window(event_start, event_end)
     _validate_guaranteed_capacity(contract_capacity_kw, committed_capacity_kw)
+    if not dr_periods:
+        raise HTTPException(400, "dr_periods 必填")
+    dr_period_ranges = parse_dr_periods(dr_periods)
+    if not is_in_dr_period(event_start.date(), dr_period_ranges):
+        raise HTTPException(400, "事件日期未落在合約約定的抑低期間")
 
     if notification_minutes_before not in (30, 60, 120):
         raise HTTPException(400, "notification_minutes_before 必須為 30、60 或 120")
@@ -691,11 +702,12 @@ def compute_guaranteed_reward(
     customer_id: str,
     notification_minutes_before: int,
     contract_capacity_kw: float,
+    committed_capacity_kw: float,
     events: List[GuaranteedRewardEvent],
     records: List[MeterRecord],
-    committed_capacity_kw: Optional[float] = None,
     basic_fee_rate: Optional[float] = None,
     flow_fee_rate: Optional[float] = None,
+    dr_periods: Optional[List[DRPeriod]] = None,
 ):
     if notification_minutes_before not in (30, 60, 120):
         raise HTTPException(400, "notification_minutes_before 必須為 30、60 或 120")
@@ -710,6 +722,10 @@ def compute_guaranteed_reward(
     if flow_fee_rate is None:
         flow_fee_rate = 12.0
 
+    if not dr_periods:
+        raise HTTPException(400, "dr_periods 必填")
+    dr_period_ranges = parse_dr_periods(dr_periods)
+
     customer_records = validate_customer_records(records, customer_id)
 
     allowed_windows: List[tuple] = []
@@ -717,7 +733,10 @@ def compute_guaranteed_reward(
         ev_start = to_taipei(ev.event_start)
         ev_end = to_taipei(ev.event_end)
         _validate_guaranteed_event_window(ev_start, ev_end)
-        _validate_guaranteed_capacity(contract_capacity_kw, ev.committed_capacity_kw if ev.committed_capacity_kw is not None else committed_capacity_kw)
+        event_committed = ev.committed_capacity_kw if ev.committed_capacity_kw is not None else committed_capacity_kw
+        _validate_guaranteed_capacity(contract_capacity_kw, event_committed)
+        if not is_in_dr_period(ev_start.date(), dr_period_ranges):
+            raise HTTPException(400, "事件日期未落在合約約定的抑低期間")
         baseline_end = ev_start - timedelta(minutes=notification_minutes_before)
         baseline_start = baseline_end - timedelta(hours=2)
         allowed_windows.append((baseline_start, baseline_end))
@@ -734,8 +753,6 @@ def compute_guaranteed_reward(
         event_committed = ev.committed_capacity_kw
         if event_committed is None:
             event_committed = committed_capacity_kw
-        if event_committed is None:
-            event_committed = contract_capacity_kw
         ev_start = to_taipei(ev.event_start)
         ev_end = to_taipei(ev.event_end)
         baseline_end = ev_start - timedelta(minutes=notification_minutes_before)
@@ -825,18 +842,27 @@ def compute_guaranteed_reward(
 def compute_guaranteed_cbl(
     customer_id: str,
     event_start: datetime,
+    event_end: datetime,
     records: List[MeterRecord],
     notification_minutes_before: int,
     contract_capacity_kw: float,
+    committed_capacity_kw: float,
     flow_fee_rate: Optional[float] = None,
+    dr_periods: Optional[List[DRPeriod]] = None,
 ):
     if notification_minutes_before not in (30, 60, 120):
         raise HTTPException(400, "notification_minutes_before 必須為 30、60 或 120")
     if flow_fee_rate is None:
         flow_fee_rate = 12.0
-    _validate_guaranteed_capacity(contract_capacity_kw)
+    _validate_guaranteed_capacity(contract_capacity_kw, committed_capacity_kw)
     event_start = to_taipei(event_start)
-    _validate_guaranteed_event_window(event_start, event_start + timedelta(minutes=notification_minutes_before))
+    event_end = to_taipei(event_end)
+    _validate_guaranteed_event_window(event_start, event_end)
+    if not dr_periods:
+        raise HTTPException(400, "dr_periods 必填")
+    dr_period_ranges = parse_dr_periods(dr_periods)
+    if not is_in_dr_period(event_start.date(), dr_period_ranges):
+        raise HTTPException(400, "事件日期未落在合約約定的抑低期間")
     notification_time = event_start - timedelta(minutes=notification_minutes_before)
     baseline_start = notification_time - timedelta(hours=2)
     baseline_end = notification_time
@@ -936,6 +962,7 @@ def build_guaranteed_required_windows(
     event_start: datetime,
     event_end: datetime,
     notification_minutes_before: int,
+    dr_periods: Optional[List[DRPeriod]] = None,
 ) -> GuaranteedRequiredPreResponse:
     event_start = to_taipei(event_start)
     event_end = to_taipei(event_end)
@@ -944,6 +971,11 @@ def build_guaranteed_required_windows(
     _validate_guaranteed_event_window(event_start, event_end)
     if notification_minutes_before not in (30, 60, 120):
         raise HTTPException(400, "notification_minutes_before 必須為 30、60 或 120")
+    if not dr_periods:
+        raise HTTPException(400, "dr_periods 必填")
+    dr_period_ranges = parse_dr_periods(dr_periods)
+    if not is_in_dr_period(event_start.date(), dr_period_ranges):
+        raise HTTPException(400, "事件日期未落在合約約定的抑低期間")
     notification_time = event_start - timedelta(minutes=notification_minutes_before)
     baseline_start = notification_time - timedelta(hours=2)
     baseline_end = notification_time
@@ -958,6 +990,7 @@ def build_guaranteed_required_windows_post(
     event_start: datetime,
     event_end: datetime,
     notification_minutes_before: int,
+    dr_periods: Optional[List[DRPeriod]] = None,
 ) -> GuaranteedRequiredPostResponse:
     event_start = to_taipei(event_start)
     event_end = to_taipei(event_end)
@@ -966,6 +999,11 @@ def build_guaranteed_required_windows_post(
     _validate_guaranteed_event_window(event_start, event_end)
     if notification_minutes_before not in (30, 60, 120):
         raise HTTPException(400, "notification_minutes_before 必須為 30、60 或 120")
+    if not dr_periods:
+        raise HTTPException(400, "dr_periods 必填")
+    dr_period_ranges = parse_dr_periods(dr_periods)
+    if not is_in_dr_period(event_start.date(), dr_period_ranges):
+        raise HTTPException(400, "事件日期未落在合約約定的抑低期間")
     notification_time = event_start - timedelta(minutes=notification_minutes_before)
     baseline_start = notification_time - timedelta(hours=2)
     baseline_end = notification_time

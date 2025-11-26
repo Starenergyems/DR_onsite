@@ -78,6 +78,7 @@ GUARANTEED_REQUIRED_REQUEST_EXAMPLE_PRE = {
     "event_start": GUARANTEED_REWARD_REQUEST_EXAMPLE["events"][0]["event_start"],
     "event_end": GUARANTEED_REWARD_REQUEST_EXAMPLE["events"][0]["event_end"],
     "notification_minutes_before": GUARANTEED_REWARD_REQUEST_EXAMPLE["notification_minutes_before"],
+    "dr_periods": GUARANTEED_REWARD_REQUEST_EXAMPLE.get("dr_periods", []),
 }
 GUARANTEED_REQUIRED_REQUEST_EXAMPLE_POST = GUARANTEED_REQUIRED_REQUEST_EXAMPLE_PRE.copy()
 
@@ -182,9 +183,12 @@ def _build_guaranteed_cbl_response():
     resp = compute_guaranteed_cbl(
         customer_id=req.customer_id,
         event_start=req.event_start,
+        event_end=req.event_end,
         records=req.records,
         notification_minutes_before=req.notification_minutes_before,
         contract_capacity_kw=req.contract_capacity_kw,
+        committed_capacity_kw=req.committed_capacity_kw,
+        dr_periods=req.dr_periods,
     )
     return resp.model_dump()
 
@@ -199,6 +203,7 @@ def _build_guaranteed_event_request_from_reward(data: Dict[str, Any]) -> Dict[st
         "notification_minutes_before": data["notification_minutes_before"],
         "contract_capacity_kw": data["contract_capacity_kw"],
         "committed_capacity_kw": data.get("committed_capacity_kw"),
+        "dr_periods": data.get("dr_periods", []),
         "basic_fee_rate": data.get("basic_fee_rate"),
         "flow_fee_rate": data.get("flow_fee_rate"),
     }

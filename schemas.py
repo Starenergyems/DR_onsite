@@ -109,9 +109,8 @@ class GuaranteedEventRequest(BaseModel):
     records: List[MeterRecord]
     notification_minutes_before: int = Field(..., description="通知提前分鐘數，值須為 30、60 或 120")
     contract_capacity_kw: float = Field(..., gt=0, description="抑低契約容量 (瓩)")
-    committed_capacity_kw: Optional[float] = Field(
-        None, description="約定抑低契約容量，未提供則以 contract_capacity_kw 為準"
-    )
+    committed_capacity_kw: float = Field(..., description="約定抑低契約容量")
+    dr_periods: List[DRPeriod] = Field(..., description="與台電簽訂的抑低期間清單，起訖含當日")
     basic_fee_rate: Optional[float] = Field(
         None, description="基本電費扣減費率 (每瓩每月)，若未提供則依通知時間預設"
     )
@@ -151,7 +150,7 @@ class GuaranteedRewardEvent(BaseModel):
     event_start: datetime
     event_end: datetime
     committed_capacity_kw: Optional[float] = Field(
-        None, description="事件約定抑低契約容量，未提供則套用月度或契約容量"
+        None, description="事件約定抑低契約容量，未提供則套用月度約定容量"
     )
 
 
@@ -159,15 +158,14 @@ class GuaranteedRewardRequest(BaseModel):
     customer_id: str
     notification_minutes_before: int = Field(..., description="通知提前分鐘數，30、60 或 120")
     contract_capacity_kw: float = Field(..., gt=0, description="抑低契約容量 (瓩)")
+    committed_capacity_kw: float = Field(..., description="月度約定抑低契約容量")
     events: List[GuaranteedRewardEvent] = Field(
         ..., description="本月所有抑低事件清單，每項事件需包含開始與結束時間"
-    )
-    committed_capacity_kw: Optional[float] = Field(
-        None, description="月度約定抑低契約容量，事件未提供時沿用，否則退回契約容量"
     )
     records: List[MeterRecord]
     basic_fee_rate: Optional[float] = None
     flow_fee_rate: Optional[float] = None
+    dr_periods: List[DRPeriod] = Field(..., description="與台電簽訂的抑低期間清單，起訖含當日")
 
 
 class GuaranteedRewardResponse(BaseModel):
@@ -187,9 +185,12 @@ class GuaranteedRewardResponse(BaseModel):
 class GuaranteedCBLRequest(BaseModel):
     customer_id: str
     event_start: datetime
+    event_end: datetime
     records: List[MeterRecord]
     notification_minutes_before: int = Field(..., description="通知提前分鐘數，30、60 或 120")
     contract_capacity_kw: float = Field(..., gt=0, description="抑低契約容量 (瓩)")
+    committed_capacity_kw: float = Field(..., description="約定抑低契約容量")
+    dr_periods: List[DRPeriod] = Field(..., description="與台電簽訂的抑低期間清單，起訖含當日")
 
 
 class GuaranteedCBLResponse(BaseModel):
@@ -228,6 +229,7 @@ class GuaranteedRequiredRequest(BaseModel):
     event_start: datetime
     event_end: datetime
     notification_minutes_before: int
+    dr_periods: List[DRPeriod]
 
 
 class GuaranteedRequiredResponse(BaseModel):

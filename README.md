@@ -332,9 +332,12 @@ Compute the baseline (two‑hour pre‑notification average) for a single guaran
 Request fields:
 
 - `customer_id` – ID of the participant.
-- `event_start` – scheduled start time of the event (ISO 8601).
+- `event_start` / `event_end` – scheduled start/end time of the event (ISO 8601). Duration must be 2, 3 or 4 hours.
 - `notification_minutes_before` – minutes of advance notice (30, 60 or 120).
-- `contract_capacity_kw` – the participant’s committed reduction capacity (kW).
+- `contract_capacity_kw` – the participant’s contract capacity (kW).
+- `committed_capacity_kw` – the committed reduction capacity (required).
+- `dr_periods` – list of contract DR periods (`start`/`end`, YYYY-MM or YYYY-MM-DD); event day must fall within one of them.
+- `records` – 15‑minute meter records covering the notification window.
 
 The response returns the baseline kW and the time window used for the calculation.
 
@@ -357,7 +360,10 @@ Compute the **monthly electricity‑fee adjustment** for a guaranteed response p
 - `customer_id` – ID of the participant.
 - `notification_minutes_before` – the standard advance notice for the month (30, 60 or 120).
 - `contract_capacity_kw` – the participant’s contract capacity (kW).
-- `events` – a list of objects describing each event in the month (each object must include `event_start`, `event_end`, and optionally `basic_fee_rate` and `flow_fee_rate`).
+- `committed_capacity_kw` – the monthly committed reduction capacity (required).
+- `dr_periods` – list of contract DR periods (`start`/`end`, YYYY-MM or YYYY-MM-DD); all event days must fall within one of them.
+- `events` – a list of objects describing each event in the month (each object must include `event_start`, `event_end`, and optionally `basic_fee_rate` and `flow_fee_rate`; you may override committed capacity per event).
+- `records` – 15-minute meter records covering all notification/event windows referenced by the events.
 - Optional: `basic_fee_rate` and `flow_fee_rate` – override the default rates for all events.
 
 The endpoint calculates, for each event, the baseline, reduction, execution rate, flow reduction and extra charge.  It then computes the average execution rate for the month, applies the appropriate reduction ratio to the basic fee, sums the flow reductions and extra charges, and returns the net reward.
