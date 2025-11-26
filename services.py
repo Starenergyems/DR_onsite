@@ -10,6 +10,8 @@ from schemas import (
     DaySelectCBLResponse,
     DaySelectReductionResponse,
     DaySelectRewardResponse,
+    DaySelectMonthlySettlementResponse,
+    DaySelectMonthlyEvent,
     GuaranteedCBLResponse,
     GuaranteedEventDetail,
     GuaranteedEventResponse,
@@ -404,9 +406,9 @@ def compute_day_select_reward(
     records: List[MeterRecord],
     committed_capacity_kw: float,
     contract_capacity_kw: float,
-    dr_periods: Optional[List[DRPeriod]] = None,
     batch_time_tariff: bool = False,
     assumed_af_kw: Optional[float] = None,
+    dr_periods: Optional[List[DRPeriod]] = None,
     min_baseline_days: int = 20,
 ):
     _validate_day_select_capacity(contract_capacity_kw, committed_capacity_kw)
@@ -507,6 +509,49 @@ def compute_day_select_reward(
         detail=detail,
     )
 
+
+# -------------------------
+# 日選：月度結算（多事件加總）
+# -------------------------
+def compute_day_select_settlement_monthly(
+    customer_id: str,
+    contract_capacity_kw: float,
+    committed_capacity_kw: float,
+    dr_periods: List[DRPeriod],
+    events: List[DaySelectMonthlyEvent],
+    min_baseline_days: int = 20,
+) -> DaySelectMonthlySettlementResponse:
+    if not events:
+        raise HTTPException(400, "events 不可為空")
+    total_reward = 0.0
+    total_reduction_kwh = 0.0
+    results: List[DaySelectRewardResponse] = []
+    for ev in events:
+        event_committed = ev.committed_capacity_kw if ev.committed_capacity_kw is not None else committed_capacity_kw
+        res = compute_day_select_reward(
+            customer_id=customer_id,
+            event_start=ev.event_start,
+            event_end=ev.event_end,
+            records=ev.records,
+            batch_time_tariff=ev.batch_time_tariff,
+            assumed_af_kw=ev.assumed_af_kw,
+            contract_capacity_kw=contract_capacity_kw,
+            committed_capacity_kw=event_committed,
+            dr_periods=dr_periods,
+            min_baseline_days=min_baseline_days,
+        )
+        results.append(res)
+        total_reward += res.reward_ntd
+        total_reduction_kwh += res.actual_reduction_kw * res.event_duration_hours
+    return DaySelectMonthlySettlementResponse(
+        customer_id=customer_id,
+        contract_capacity_kw=contract_capacity_kw,
+        committed_capacity_kw=committed_capacity_kw,
+        total_reward_ntd=total_reward,
+        total_actual_reduction_kwh=total_reduction_kwh,
+        events=results,
+        method="day-select-settlement-monthly-v1",
+    )
 
 # -------------------------
 # 日選實際抑低容量計算

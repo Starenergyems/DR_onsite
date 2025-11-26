@@ -10,6 +10,8 @@ from schemas import (
     DaySelectRequiredRequest,
     DaySelectRequiredPreResponse,
     DaySelectRequiredPostResponse,
+    DaySelectMonthlySettlementRequest,
+    DaySelectMonthlySettlementResponse,
     GuaranteedCBLRequest,
     GuaranteedCBLResponse,
     GuaranteedEventRequest,
@@ -24,6 +26,7 @@ from services import (
     compute_day_select_cbl,
     compute_day_select_reduction,
     compute_day_select_reward,
+    compute_day_select_settlement_monthly,
     build_day_select_required_windows,
     build_day_select_required_windows_post,
     compute_guaranteed_cbl,
@@ -42,6 +45,8 @@ from swagger_examples import (
     DAY_SELECT_REWARD_ERROR_EXAMPLE,
     DAY_SELECT_REWARD_RESPONSE_EXAMPLE,
     DAY_SELECT_REWARD_REQUEST_EXAMPLE,
+    DAY_SELECT_SETTLEMENT_MONTHLY_REQUEST_EXAMPLE,
+    DAY_SELECT_SETTLEMENT_MONTHLY_RESPONSE_EXAMPLE,
     DAY_SELECT_REQUIRED_RESPONSE_EXAMPLE,
     DAY_SELECT_REQUIRED_REQUEST_EXAMPLE,
     DAY_SELECT_REQUIRED_POST_RESPONSE_EXAMPLE,
@@ -116,6 +121,26 @@ def api_day_select_reward(req: DaySelectRewardRequest = Body(..., example=DAY_SE
         contract_capacity_kw=req.contract_capacity_kw,
         committed_capacity_kw=req.committed_capacity_kw,
         dr_periods=req.dr_periods,
+    )
+
+
+@app.post(
+    "/dr/day-select/settlement/monthly",
+    response_model=DaySelectMonthlySettlementResponse,
+    description="日選方案月度結算：多事件回饋金加總並回傳每事件明細。",
+    tags=["Day-Select"],
+    responses={
+        200: {"description": "計算成功", "content": {"application/json": {"example": DAY_SELECT_SETTLEMENT_MONTHLY_RESPONSE_EXAMPLE}}},
+        400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_REWARD_ERROR_EXAMPLE}}},
+    },
+)
+def api_day_select_settlement_monthly(req: DaySelectMonthlySettlementRequest = Body(..., example=DAY_SELECT_SETTLEMENT_MONTHLY_REQUEST_EXAMPLE)):
+    return compute_day_select_settlement_monthly(
+        customer_id=req.customer_id,
+        contract_capacity_kw=req.contract_capacity_kw,
+        committed_capacity_kw=req.committed_capacity_kw,
+        dr_periods=req.dr_periods,
+        events=req.events,
     )
 
 

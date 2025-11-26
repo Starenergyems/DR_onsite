@@ -72,6 +72,32 @@ class DaySelectRewardResponse(BaseModel):
     method: str
     detail: Dict[str, Any]
 
+class DaySelectMonthlyEvent(BaseModel):
+    event_start: datetime
+    event_end: datetime
+    batch_time_tariff: bool
+    records: List[MeterRecord]
+    assumed_af_kw: Optional[float] = Field(None, description="事件前可預估 22:00-24:00 平均需量（用於 AF）")
+    committed_capacity_kw: Optional[float] = Field(None, description="事件層級約定抑低容量，未提供則用月度值")
+
+
+class DaySelectMonthlySettlementRequest(BaseModel):
+    customer_id: str
+    contract_capacity_kw: float
+    committed_capacity_kw: float
+    dr_periods: List[DRPeriod]
+    events: List[DaySelectMonthlyEvent]
+
+
+class DaySelectMonthlySettlementResponse(BaseModel):
+    customer_id: str
+    contract_capacity_kw: float
+    committed_capacity_kw: float
+    total_reward_ntd: float
+    total_actual_reduction_kwh: float
+    events: List[DaySelectRewardResponse]
+    method: str
+
 
 class DaySelectReductionRequest(BaseModel):
     customer_id: str

@@ -18,6 +18,7 @@ from services import (
     compute_day_select_cbl,
     compute_day_select_reduction,
     compute_day_select_reward,
+    compute_day_select_settlement_monthly,
     build_day_select_required_windows,
     build_day_select_required_windows_post,
     compute_guaranteed_cbl,
@@ -51,6 +52,22 @@ DAY_SELECT_REDUCTION_REQUEST_EXAMPLE = DAY_SELECT_REWARD_REQUEST_EXAMPLE
 DAY_SELECT_CBL_REQUEST_ERROR = _load_sample("day_select_cbl_wrong.json")
 DAY_SELECT_REWARD_REQUEST_ERROR = _load_sample("day_select_reward_wrong.json")
 DAY_SELECT_REDUCTION_REQUEST_ERROR = DAY_SELECT_REWARD_REQUEST_ERROR
+DAY_SELECT_SETTLEMENT_MONTHLY_REQUEST_EXAMPLE = {
+    "customer_id": DAY_SELECT_REWARD_REQUEST_EXAMPLE["customer_id"],
+    "contract_capacity_kw": DAY_SELECT_REWARD_REQUEST_EXAMPLE["contract_capacity_kw"],
+    "committed_capacity_kw": DAY_SELECT_REWARD_REQUEST_EXAMPLE["committed_capacity_kw"],
+    "dr_periods": DAY_SELECT_REWARD_REQUEST_EXAMPLE.get("dr_periods", []),
+    "events": [
+        {
+            "event_start": DAY_SELECT_REWARD_REQUEST_EXAMPLE["event_start"],
+            "event_end": DAY_SELECT_REWARD_REQUEST_EXAMPLE["event_end"],
+            "records": DAY_SELECT_REWARD_REQUEST_EXAMPLE["records"],
+            "batch_time_tariff": DAY_SELECT_REWARD_REQUEST_EXAMPLE.get("batch_time_tariff", False),
+            "assumed_af_kw": DAY_SELECT_REWARD_REQUEST_EXAMPLE.get("assumed_af_kw"),
+            "committed_capacity_kw": DAY_SELECT_REWARD_REQUEST_EXAMPLE.get("committed_capacity_kw"),
+        }
+    ],
+}
 
 # Required windows requests derived from samples
 DAY_SELECT_REQUIRED_REQUEST_EXAMPLE = {
@@ -126,6 +143,18 @@ def _build_day_select_reduction_response():
         contract_capacity_kw=req.contract_capacity_kw,
         committed_capacity_kw=req.committed_capacity_kw,
         dr_periods=req.dr_periods,
+    )
+    return resp.model_dump()
+
+
+def _build_day_select_settlement_monthly_response():
+    req = DaySelectMonthlySettlementRequest.model_validate(DAY_SELECT_SETTLEMENT_MONTHLY_REQUEST_EXAMPLE)
+    resp = compute_day_select_settlement_monthly(
+        customer_id=req.customer_id,
+        contract_capacity_kw=req.contract_capacity_kw,
+        committed_capacity_kw=req.committed_capacity_kw,
+        dr_periods=req.dr_periods,
+        events=req.events,
     )
     return resp.model_dump()
 
@@ -336,6 +365,7 @@ DAY_SELECT_CBL_RESPONSE_EXAMPLE = _build_or_error(_build_day_select_cbl_response
 DAY_SELECT_REWARD_RESPONSE_EXAMPLE = _build_or_error(_build_day_select_reward_response)
 DAY_SELECT_REDUCTION_RESPONSE_EXAMPLE = _build_or_error(_build_day_select_reduction_response)
 DAY_SELECT_CBL_ERROR_EXAMPLE = _build_or_error(_build_day_select_cbl_error)
+DAY_SELECT_SETTLEMENT_MONTHLY_RESPONSE_EXAMPLE = _build_or_error(_build_day_select_settlement_monthly_response)
 DAY_SELECT_REWARD_ERROR_EXAMPLE = _build_or_error(_build_day_select_reward_error)
 DAY_SELECT_REDUCTION_ERROR_EXAMPLE = _build_or_error(_build_day_select_reduction_error)
 
