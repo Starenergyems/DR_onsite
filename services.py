@@ -743,6 +743,37 @@ def compute_guaranteed_event(
     )
 
 
+def compute_guaranteed_reduction_simple(
+    customer_id: str,
+    event_start: datetime,
+    event_end: datetime,
+    notification_minutes_before: int,
+    contract_capacity_kw: float,
+    records: List[MeterRecord],
+    committed_capacity_kw: float,
+    dr_periods: Optional[List[DRPeriod]] = None,
+):
+    """
+    與 compute_guaranteed_event 相同的基準/抑低/執行率計算，但不計算流動電費與違約金。
+    """
+    result = compute_guaranteed_event(
+        customer_id=customer_id,
+        event_start=event_start,
+        event_end=event_end,
+        notification_minutes_before=notification_minutes_before,
+        contract_capacity_kw=contract_capacity_kw,
+        committed_capacity_kw=committed_capacity_kw,
+        records=records,
+        basic_fee_rate=None,
+        flow_fee_rate=None,
+        dr_periods=dr_periods,
+    )
+    result.flow_reduction_amount = 0.0
+    result.extra_charge_amount = 0.0
+    result.detail["flow_reduction_amount"] = 0.0
+    result.detail["extra_charge_amount"] = 0.0
+    return result
+
 def compute_guaranteed_reward(
     customer_id: str,
     notification_minutes_before: int,

@@ -353,7 +353,7 @@ Compute the baseline and **actual reduction** for a single guaranteed response e
 
 The response returns the baseline kW, the actual average demand and reduction, the execution rate, and the flow fee reduction or extra charge for that event.
 
-#### `POST /dr/guaranteed/settlement/monthly`
+#### `POST /dr/guaranteed/settlement`
 
 Compute the **monthly electricity‑fee adjustment** for a guaranteed response participant.  The request body must include:
 
@@ -413,7 +413,7 @@ curl -X POST http://localhost:18000/dr/guaranteed/cbl \
   --data @samples/guaranteed_cbl_correct.json
 
 # Guaranteed reward (post-event)
-curl -X POST http://localhost:18000/dr/guaranteed/settlement/monthly \
+curl -X POST http://localhost:18000/dr/guaranteed/settlement \
   -H "Content-Type: application/json" \
   --data @samples/guaranteed_reward_correct.json
 ```
@@ -426,5 +426,5 @@ curl -X POST http://localhost:18000/dr/guaranteed/settlement/monthly \
 - `samples/day_select_reward_wrong.json` → `POST /dr/day-select/settlement`: 400 with message like `事件日 ... 缺少 ... 15 分鐘區間` (event window gap).
 - `samples/guaranteed_cbl_correct.json` → `POST /dr/guaranteed/cbl`: 200 OK. `baseline_kw` ~100 (average of 08:00–10:00).
 - `samples/guaranteed_cbl_wrong.json` → `POST /dr/guaranteed/cbl`: 400 with message like `時間戳未對齊 15 分鐘`.
-- `samples/guaranteed_reward_correct.json` → `POST /dr/guaranteed/settlement/monthly`: 200 OK. `baseline_kw` ~100, event avg ~30 → reduction ~70, execution_rate ~0.8 on committed=90; flow reduction positive, no penalty.
-- `samples/guaranteed_reward_wrong.json` → `POST /dr/guaranteed/settlement/monthly`: 400 with message like `缺少 ... 15 分鐘區間` (event window gap).
+- `samples/guaranteed_reward_correct.json` → `POST /dr/guaranteed/settlement`: 200 OK. `baseline_kw` ~100, event avg ~30 → reduction ~70, execution_rate ~0.8 on committed=90; flow reduction positive, no penalty.
+- `samples/guaranteed_reward_wrong.json` → `POST /dr/guaranteed/settlement`: 400 with message like `缺少 ... 15 分鐘區間` (event window gap).
