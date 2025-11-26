@@ -147,7 +147,7 @@ curl -X POST http://localhost:18000/dr/day-select/cbl \
   -H "Content-Type: application/json" \
   --data @samples/day_select_batch_cbl_correct.json
 
-curl -X POST http://localhost:18000/dr/day-select/reward \
+curl -X POST http://localhost:18000/dr/day-select/settlement \
   -H "Content-Type: application/json" \
   --data @samples/day_select_batch_reward_correct.json
 ```
@@ -174,13 +174,13 @@ jq '{
   records: .records
 }' sample_meter_data.json > day_select_reward.json
 
-curl -X POST http://localhost:18000/dr/day-select/reward \
+curl -X POST http://localhost:18000/dr/day-select/settlement \
      -H "Content-Type: application/json" \
      --data @day_select_reward.json
 ```
 
 
-### `POST /dr/day-select/reward`
+### `POST /dr/day-select/settlement`
 
 Compute the **daily electricity‑fee deduction (回饋金)** for a given DR event.  This endpoint builds upon the CBL calculation and applies Taipower’s reward formula for the day‑select plan:
 
@@ -209,7 +209,7 @@ Request fields:
 Example (using the sample payload built above):
 
 ```bash
-curl -X POST http://localhost:18000/dr/day-select/reward \
+curl -X POST http://localhost:18000/dr/day-select/settlement \
      -H "Content-Type: application/json" \
      --data @day_select_reward.json
 ```
@@ -341,7 +341,7 @@ Request fields:
 
 The response returns the baseline kW and the time window used for the calculation.
 
-#### `POST /dr/guaranteed/reduction`
+#### `POST /dr/guaranteed/settlement`
 
 Compute the baseline and **actual reduction** for a single guaranteed response event.  This endpoint should be used **after** the event has occurred.  The request body must include:
 
@@ -353,7 +353,7 @@ Compute the baseline and **actual reduction** for a single guaranteed response e
 
 The response returns the baseline kW, the actual average demand and reduction, the execution rate, and the flow fee reduction or extra charge for that event.
 
-#### `POST /dr/guaranteed/reward`
+#### `POST /dr/guaranteed/settlement/monthly`
 
 Compute the **monthly electricity‑fee adjustment** for a guaranteed response participant.  The request body must include:
 
@@ -403,7 +403,7 @@ curl -X POST http://localhost:18000/dr/day-select/cbl \
   --data @samples/day_select_cbl_correct.json
 
 # Day-select reward (post-event)
-curl -X POST http://localhost:18000/dr/day-select/reward \
+curl -X POST http://localhost:18000/dr/day-select/settlement \
   -H "Content-Type: application/json" \
   --data @samples/day_select_reward_correct.json
 
@@ -413,7 +413,7 @@ curl -X POST http://localhost:18000/dr/guaranteed/cbl \
   --data @samples/guaranteed_cbl_correct.json
 
 # Guaranteed reward (post-event)
-curl -X POST http://localhost:18000/dr/guaranteed/reward \
+curl -X POST http://localhost:18000/dr/guaranteed/settlement/monthly \
   -H "Content-Type: application/json" \
   --data @samples/guaranteed_reward_correct.json
 ```
@@ -422,9 +422,9 @@ curl -X POST http://localhost:18000/dr/guaranteed/reward \
 
 - `samples/day_select_cbl_correct.json` → `POST /dr/day-select/cbl`: 200 OK. `cbl_kw` ~100 (AF ≈ 0 because assumed_af_kw=95 is below hist adjust). Baseline dates list returned.
 - `samples/day_select_cbl_wrong.json` → `POST /dr/day-select/cbl`: 400 with message like `缺少 ... 15 分鐘區間` (baseline window gap).
-- `samples/day_select_reward_correct.json` → `POST /dr/day-select/reward`: 200 OK. `cbl_kw` ~100; event avg < baseline so positive `actual_reduction_kw`; execution_rate based on committed=100.
-- `samples/day_select_reward_wrong.json` → `POST /dr/day-select/reward`: 400 with message like `事件日 ... 缺少 ... 15 分鐘區間` (event window gap).
+- `samples/day_select_reward_correct.json` → `POST /dr/day-select/settlement`: 200 OK. `cbl_kw` ~100; event avg < baseline so positive `actual_reduction_kw`; execution_rate based on committed=100.
+- `samples/day_select_reward_wrong.json` → `POST /dr/day-select/settlement`: 400 with message like `事件日 ... 缺少 ... 15 分鐘區間` (event window gap).
 - `samples/guaranteed_cbl_correct.json` → `POST /dr/guaranteed/cbl`: 200 OK. `baseline_kw` ~100 (average of 08:00–10:00).
 - `samples/guaranteed_cbl_wrong.json` → `POST /dr/guaranteed/cbl`: 400 with message like `時間戳未對齊 15 分鐘`.
-- `samples/guaranteed_reward_correct.json` → `POST /dr/guaranteed/reward`: 200 OK. `baseline_kw` ~100, event avg ~30 → reduction ~70, execution_rate ~0.8 on committed=90; flow reduction positive, no penalty.
-- `samples/guaranteed_reward_wrong.json` → `POST /dr/guaranteed/reward`: 400 with message like `缺少 ... 15 分鐘區間` (event window gap).
+- `samples/guaranteed_reward_correct.json` → `POST /dr/guaranteed/settlement/monthly`: 200 OK. `baseline_kw` ~100, event avg ~30 → reduction ~70, execution_rate ~0.8 on committed=90; flow reduction positive, no penalty.
+- `samples/guaranteed_reward_wrong.json` → `POST /dr/guaranteed/settlement/monthly`: 400 with message like `缺少 ... 15 分鐘區間` (event window gap).

@@ -10,8 +10,6 @@ from schemas import (
     DaySelectRequiredRequest,
     DaySelectRequiredPreResponse,
     DaySelectRequiredPostResponse,
-    DaySelectMonthlySettlementRequest,
-    DaySelectMonthlySettlementResponse,
     GuaranteedCBLRequest,
     GuaranteedCBLResponse,
     GuaranteedEventRequest,
@@ -26,7 +24,6 @@ from services import (
     compute_day_select_cbl,
     compute_day_select_reduction,
     compute_day_select_reward,
-    compute_day_select_settlement_monthly,
     build_day_select_required_windows,
     build_day_select_required_windows_post,
     compute_guaranteed_cbl,
@@ -45,8 +42,6 @@ from swagger_examples import (
     DAY_SELECT_REWARD_ERROR_EXAMPLE,
     DAY_SELECT_REWARD_RESPONSE_EXAMPLE,
     DAY_SELECT_REWARD_REQUEST_EXAMPLE,
-    DAY_SELECT_SETTLEMENT_MONTHLY_REQUEST_EXAMPLE,
-    DAY_SELECT_SETTLEMENT_MONTHLY_RESPONSE_EXAMPLE,
     DAY_SELECT_REQUIRED_RESPONSE_EXAMPLE,
     DAY_SELECT_REQUIRED_REQUEST_EXAMPLE,
     DAY_SELECT_REQUIRED_POST_RESPONSE_EXAMPLE,
@@ -101,16 +96,16 @@ def api_day_select_cbl(req: DaySelectCBLRequest = Body(..., example=DAY_SELECT_C
 
 
 @app.post(
-    "/dr/day-select/reward",
+    "/dr/day-select/settlement",
     response_model=DaySelectRewardResponse,
-    description="計算日選方案回饋金：先算 CBL/實際抑低，再套用執行率、扣減比率與費率。",
+    description="計算日選方案單次回饋金：先算 CBL/實際抑低，再套用執行率、扣減比率與費率。",
     tags=["Day-Select"],
     responses={
         200: {"description": "計算成功", "content": {"application/json": {"example": DAY_SELECT_REWARD_RESPONSE_EXAMPLE}}},
         400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_REWARD_ERROR_EXAMPLE}}},
     },
 )
-def api_day_select_reward(req: DaySelectRewardRequest = Body(..., example=DAY_SELECT_REWARD_REQUEST_EXAMPLE)):
+def api_day_select_settlement(req: DaySelectRewardRequest = Body(..., example=DAY_SELECT_REWARD_REQUEST_EXAMPLE)):
     return compute_day_select_reward(
         customer_id=req.customer_id,
         event_start=req.event_start,
@@ -121,26 +116,6 @@ def api_day_select_reward(req: DaySelectRewardRequest = Body(..., example=DAY_SE
         contract_capacity_kw=req.contract_capacity_kw,
         committed_capacity_kw=req.committed_capacity_kw,
         dr_periods=req.dr_periods,
-    )
-
-
-@app.post(
-    "/dr/day-select/settlement/monthly",
-    response_model=DaySelectMonthlySettlementResponse,
-    description="日選方案月度結算：多事件回饋金加總並回傳每事件明細。",
-    tags=["Day-Select"],
-    responses={
-        200: {"description": "計算成功", "content": {"application/json": {"example": DAY_SELECT_SETTLEMENT_MONTHLY_RESPONSE_EXAMPLE}}},
-        400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_REWARD_ERROR_EXAMPLE}}},
-    },
-)
-def api_day_select_settlement_monthly(req: DaySelectMonthlySettlementRequest = Body(..., example=DAY_SELECT_SETTLEMENT_MONTHLY_REQUEST_EXAMPLE)):
-    return compute_day_select_settlement_monthly(
-        customer_id=req.customer_id,
-        contract_capacity_kw=req.contract_capacity_kw,
-        committed_capacity_kw=req.committed_capacity_kw,
-        dr_periods=req.dr_periods,
-        events=req.events,
     )
 
 
@@ -194,7 +169,7 @@ def api_guaranteed_cbl(req: GuaranteedCBLRequest = Body(..., example=GUARANTEED_
 @app.post(
     "/dr/guaranteed/reduction",
     response_model=GuaranteedEventResponse,
-    description="計算保證反應型單次事件的基準需量、實際抑低容量、執行率與流動/違約費用。",
+    description="計算保證反應型單次事件的基準需量、實際抑低容量、執行率與流動/違約費用（不含基本電費扣減）。",
     tags=["Guaranteed"],
     responses={
         200: {"description": "計算成功", "content": {"application/json": {"example": GUARANTEED_EVENT_RESPONSE_EXAMPLE}}},
@@ -217,7 +192,7 @@ def api_guaranteed_reduction(req: GuaranteedEventRequest = Body(..., example=GUA
 
 
 @app.post(
-    "/dr/guaranteed/reward",
+    "/dr/guaranteed/settlement/monthly",
     response_model=GuaranteedRewardResponse,
     description="彙總本月所有保證反應型事件，計算基本電費與流動電費扣減、違約金與淨回饋。",
     tags=["Guaranteed"],
@@ -260,14 +235,14 @@ def api_day_select_required_records_pre(req: DaySelectRequiredRequest = Body(...
 
 
 @app.post(
-    "/dr/day-select/reward/required-records",
+    "/dr/day-select/settlement/required-records",
     response_model=DaySelectRequiredPostResponse,
     tags=["Day-Select"],
     responses={
-        200: {"description": "取得需求時間窗（事件後，用於 reward）", "content": {"application/json": {"example": DAY_SELECT_REQUIRED_POST_RESPONSE_EXAMPLE}}},
+        200: {"description": "取得需求時間窗（事件後，用於 settlement）", "content": {"application/json": {"example": DAY_SELECT_REQUIRED_POST_RESPONSE_EXAMPLE}}},
     },
 )
-def api_day_select_required_records_reward(req: DaySelectRequiredRequest = Body(..., example=DAY_SELECT_REQUIRED_REQUEST_EXAMPLE)):
+def api_day_select_required_records_settlement(req: DaySelectRequiredRequest = Body(..., example=DAY_SELECT_REQUIRED_REQUEST_EXAMPLE)):
     return build_day_select_required_windows_post(
         customer_id=req.customer_id,
         event_start=req.event_start,
