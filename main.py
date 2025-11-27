@@ -307,7 +307,7 @@ def api_guaranteed_cbl(req: GuaranteedCBLRequest = Body(..., examples={"default"
 @app.post(
     "/dr/guaranteed/reduction",
     response_model=GuaranteedEventResponse,
-    description="計算保證反應型單次事件的基準需量、實際抑低容量與執行率（不計算基本電費與流動電費扣減/違約）。建議先呼叫 /dr/guaranteed/reduction/required-records 取得需求時間窗。",
+    description="計算保證反應型單次事件的基準需量、實際抑低容量、執行率與流動電費獎懲。建議先呼叫 /dr/guaranteed/reduction/required-records 取得需求日列表，送入整日 15 分鐘資料。",
     tags=["Guaranteed: Reduction"],
     responses={
         200: {"description": "計算成功", "content": {"application/json": {"example": GUARANTEED_EVENT_RESPONSE_EXAMPLE}}},
@@ -315,7 +315,7 @@ def api_guaranteed_cbl(req: GuaranteedCBLRequest = Body(..., examples={"default"
     },
 )
 def api_guaranteed_reduction(req: GuaranteedEventRequest = Body(..., examples={"default": GUARANTEED_EVENT_REQUEST_EXAMPLE})):
-    return compute_guaranteed_reduction_simple(
+    return compute_guaranteed_event(
         customer_id=req.customer_id,
         event_start=req.event_start,
         event_end=req.event_end,

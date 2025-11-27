@@ -14,6 +14,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _preview_list(seq, n=5):
+    if len(seq) <= 2 * n:
+        return list(seq)
+    return list(seq[:n]) + ["..."] + list(seq[-n:])
+
+
 def _generate_full_day_records(days: list[date], event_hours=(time(16, 0), time(18, 0))) -> list[MeterRecord]:
     """Generate full-day 15-min records for each day; drop load during event hours."""
     records: list[MeterRecord] = []
@@ -26,6 +32,8 @@ def _generate_full_day_records(days: list[date], event_hours=(time(16, 0), time(
             if event_hours[0] < ts_naive.time() <= event_hours[1]:
                 kw = 500.0  # simulate reduction during the event window
             records.append(MeterRecord(customer_id="G001", timestamp=ts, kw=kw))
+    preview = _preview_list([f"{r.timestamp.isoformat()}|{r.kw}" for r in records], n=5)
+    logger.info("generated %s records for days=%s; sample=%s", len(records), sorted(event_days), preview)
     return records
 
 
@@ -63,9 +71,15 @@ def test_guaranteed_flow_required_and_settlement(client, event_dates, records_pa
         "notification_minutes_before": notification_minutes_before,
         "dr_periods": dr_periods,
     }
+    logger.info("STEP 1 REQ /dr/guaranteed/cbl/required-records: %s", pre_req)
     pre_resp = client.post("/dr/guaranteed/cbl/required-records", json=pre_req)
     assert pre_resp.status_code == 200
     pre_data = pre_resp.json()
+    logger.info(
+        "STEP 1 RESP required_pre: event_day=%s required_days=%s",
+        event_start_1.date(),
+        [f"{rd['date']}|{rd['role']}" for rd in pre_data["required_days"]],
+    )
     assert "windows" not in pre_data
     assert len(pre_data["required_days"]) == 1
     assert pre_data["required_days"][0]["role"] == "event"
@@ -77,17 +91,30 @@ def test_guaranteed_flow_required_and_settlement(client, event_dates, records_pa
         "contract_capacity_kw": contract_capacity_kw,
         "committed_capacity_kw": committed_capacity_kw,
     }
+    logger.info("STEP 3 REQ /dr/guaranteed/cbl: %s ...records=%s", {k: v for k, v in cbl_req.items() if k != "records"}, len(records_payload))
     cbl_resp = client.post("/dr/guaranteed/cbl", json=cbl_req)
     assert cbl_resp.status_code == 200
     cbl_data = cbl_resp.json()
+    logger.info(
+        "STEP 3 RESP CBL: baseline_kw=%.3f target_load_kw=%.3f detail=%s",
+        cbl_data["baseline_kw"],
+        cbl_data["target_load_kw"],
+        cbl_data["detail"],
+    )
     assert "target_load_kw" in cbl_data
     assert cbl_data["target_load_kw"] < cbl_data["baseline_kw"]
 
     # required-records (reduction)
     post_req = pre_req
+    logger.info("STEP 4 REQ /dr/guaranteed/reduction/required-records: %s", post_req)
     post_resp = client.post("/dr/guaranteed/reduction/required-records", json=post_req)
     assert post_resp.status_code == 200
     post_data = post_resp.json()
+    logger.info(
+        "STEP 4 RESP required_post: count=%s preview=%s",
+        len(post_data["required_days"]),
+        _preview_list([f"{rd['date']}|{rd['role']}" for rd in post_data["required_days"]]),
+    )
     assert len(post_data["required_days"]) == 1
     assert post_data["required_days"][0]["role"] == "event"
 
@@ -98,11 +125,28 @@ def test_guaranteed_flow_required_and_settlement(client, event_dates, records_pa
         "contract_capacity_kw": contract_capacity_kw,
         "committed_capacity_kw": committed_capacity_kw,
     }
+    logger.info(
+        "STEP 6 REQ /dr/guaranteed/reduction: %s ...records=%s",
+        {k: v for k, v in reduction_req.items() if k != "records"},
+        len(records_payload),
+    )
     reduction_resp = client.post("/dr/guaranteed/reduction", json=reduction_req)
     assert reduction_resp.status_code == 200
     reduction_data = reduction_resp.json()
+    logger.info(
+        "STEP 6 RESP reduction: baseline_kw=%.3f target_load_kw=%.3f actual_reduction_kw=%.3f exec_rate=%.3f flow_reduction=%.2f extra=%.2f detail=%s",
+        reduction_data["baseline_kw"],
+        reduction_data["target_load_kw"],
+        reduction_data["actual_reduction_kw"],
+        reduction_data["execution_rate"],
+        reduction_data["flow_reduction_amount"],
+        reduction_data["extra_charge_amount"],
+        reduction_data["detail"],
+    )
     assert reduction_data["execution_rate"] > 0.6
     assert "target_load_kw" in reduction_data
+    assert reduction_data["flow_reduction_amount"] >= 0
+    assert reduction_data["extra_charge_amount"] >= 0
 
     # settlement required
     settlement_required_req = {
@@ -113,9 +157,15 @@ def test_guaranteed_flow_required_and_settlement(client, event_dates, records_pa
         ],
         "dr_periods": dr_periods,
     }
+    logger.info("STEP 7 REQ /dr/guaranteed/settlement/required-records: %s", settlement_required_req)
     settle_required_resp = client.post("/dr/guaranteed/settlement/required-records", json=settlement_required_req)
     assert settle_required_resp.status_code == 200
     settle_required = settle_required_resp.json()
+    logger.info(
+        "STEP 7 RESP settlement_required: events=%s required_days=%s",
+        len(settle_required["required_days"]),
+        _preview_list([f"{rd['date']}|{rd['role']}" for rd in settle_required["required_days"]]),
+    )
     assert len(settle_required["required_days"]) == 2
     assert all(rd["role"] == "event" for rd in settle_required["required_days"])
 
@@ -129,9 +179,21 @@ def test_guaranteed_flow_required_and_settlement(client, event_dates, records_pa
         "records": records_payload,
         "dr_periods": dr_periods,
     }
+    logger.info(
+        "STEP 9 REQ /dr/guaranteed/settlement: %s ...records=%s",
+        {k: v for k, v in settlement_req.items() if k != "records"},
+        len(records_payload),
+    )
     settlement_resp = client.post("/dr/guaranteed/settlement", json=settlement_req)
     assert settlement_resp.status_code == 200
     settlement_data = settlement_resp.json()
+    logger.info(
+        "STEP 9 RESP settlement: net_reward=%.2f flow_total=%.2f extra_total=%.2f avg_exec=%.3f",
+        settlement_data["net_reward_amount"],
+        settlement_data["flow_reduction_total_amount"],
+        settlement_data["extra_charge_total_amount"],
+        settlement_data["average_execution_rate"],
+    )
     assert settlement_data["net_reward_amount"] >= 0
     assert settlement_data["event_details"]
     for ev in settlement_data["event_details"]:
