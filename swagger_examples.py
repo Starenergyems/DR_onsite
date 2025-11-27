@@ -8,7 +8,9 @@ from schemas import (
     DaySelectCBLRequest,
     DaySelectRewardRequest,
     DaySelectReductionRequest,
+    DaySelectMonthlySettlementRequest,
     DaySelectRequiredRequest,
+    DaySelectMonthlySettlementRequest,
     GuaranteedCBLRequest,
     GuaranteedEventRequest,
     GuaranteedRewardRequest,
@@ -57,11 +59,11 @@ DAY_SELECT_SETTLEMENT_MONTHLY_REQUEST_EXAMPLE = {
     "contract_capacity_kw": DAY_SELECT_REWARD_REQUEST_EXAMPLE["contract_capacity_kw"],
     "committed_capacity_kw": DAY_SELECT_REWARD_REQUEST_EXAMPLE["committed_capacity_kw"],
     "dr_periods": DAY_SELECT_REWARD_REQUEST_EXAMPLE.get("dr_periods", []),
+    "records": DAY_SELECT_REWARD_REQUEST_EXAMPLE["records"],
     "events": [
         {
             "event_start": DAY_SELECT_REWARD_REQUEST_EXAMPLE["event_start"],
             "event_end": DAY_SELECT_REWARD_REQUEST_EXAMPLE["event_end"],
-            "records": DAY_SELECT_REWARD_REQUEST_EXAMPLE["records"],
             "batch_time_tariff": DAY_SELECT_REWARD_REQUEST_EXAMPLE.get("batch_time_tariff", False),
             "assumed_af_kw": DAY_SELECT_REWARD_REQUEST_EXAMPLE.get("assumed_af_kw"),
             "committed_capacity_kw": DAY_SELECT_REWARD_REQUEST_EXAMPLE.get("committed_capacity_kw"),
@@ -335,6 +337,8 @@ def _build_day_select_required_post_response():
         event_start=req.event_start,
         event_end=req.event_end,
         batch_time_tariff=req.batch_time_tariff,
+        dr_periods=req.dr_periods,
+        min_baseline_days=req.min_baseline_days,
     )
     return resp.model_dump()
 

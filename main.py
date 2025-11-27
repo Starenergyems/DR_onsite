@@ -4,12 +4,15 @@ from schemas import (
     DaySelectCBLRequest,
     DaySelectCBLResponse,
     DaySelectReductionRequest,
-    DaySelectReductionResponse,
+    DaySelectRewardResponse,
     DaySelectRewardRequest,
     DaySelectRewardResponse,
+    DaySelectMonthlySettlementRequest,
+    DaySelectMonthlySettlementResponse,
     DaySelectRequiredRequest,
     DaySelectRequiredPreResponse,
     DaySelectRequiredPostResponse,
+    DaySelectSettlementRequiredRequest,
     GuaranteedCBLRequest,
     GuaranteedCBLResponse,
     GuaranteedEventRequest,
@@ -24,6 +27,8 @@ from services import (
     compute_day_select_cbl,
     compute_day_select_reduction,
     compute_day_select_reward,
+    compute_day_select_settlement_monthly,
+    build_day_select_settlement_required,
     build_day_select_required_windows,
     build_day_select_required_windows_post,
     compute_guaranteed_cbl,
@@ -42,6 +47,8 @@ from swagger_examples import (
     DAY_SELECT_REWARD_ERROR_EXAMPLE,
     DAY_SELECT_REWARD_RESPONSE_EXAMPLE,
     DAY_SELECT_REWARD_REQUEST_EXAMPLE,
+    DAY_SELECT_SETTLEMENT_MONTHLY_REQUEST_EXAMPLE,
+    DAY_SELECT_SETTLEMENT_MONTHLY_RESPONSE_EXAMPLE,
     DAY_SELECT_REQUIRED_RESPONSE_EXAMPLE,
     DAY_SELECT_REQUIRED_REQUEST_EXAMPLE,
     DAY_SELECT_REQUIRED_POST_RESPONSE_EXAMPLE,
@@ -77,7 +84,7 @@ app = FastAPI(
     response_model=DaySelectRequiredPreResponse,
     tags=["Day-Select: CBL"],
     responses={
-        200: {"description": "取得需求時間窗（事件前，用於 CBL 計算）", "content": {"application/json": {"example": DAY_SELECT_REQUIRED_RESPONSE_EXAMPLE}}},
+        200: {"description": "取得需求日列表（事件前，用於 CBL 計算；整日資料，含 20 基準日＋事件日）", "content": {"application/json": {"example": DAY_SELECT_REQUIRED_RESPONSE_EXAMPLE}}},
     },
 )
 def api_day_select_required_records_pre(req: DaySelectRequiredRequest = Body(..., example=DAY_SELECT_REQUIRED_REQUEST_EXAMPLE)):
@@ -97,16 +104,15 @@ def api_day_select_required_records_pre(req: DaySelectRequiredRequest = Body(...
     response_model=DaySelectRequiredPostResponse,
     tags=["Day-Select: Settlement"],
     responses={
-        200: {"description": "取得需求時間窗（事件後，用於 settlement）", "content": {"application/json": {"example": DAY_SELECT_REQUIRED_POST_RESPONSE_EXAMPLE}}},
+        200: {"description": "取得需求日列表（事件後，用於月度 settlement；整日資料，含 20 基準日＋所有事件日）", "content": {"application/json": {"example": DAY_SELECT_REQUIRED_POST_RESPONSE_EXAMPLE}}},
     },
 )
-def api_day_select_required_records_settlement(req: DaySelectRequiredRequest = Body(..., example=DAY_SELECT_REQUIRED_REQUEST_EXAMPLE)):
-    return build_day_select_required_windows_post(
+def api_day_select_required_records_settlement(req: DaySelectSettlementRequiredRequest):
+    return build_day_select_settlement_required(
         customer_id=req.customer_id,
-        event_start=req.event_start,
-        event_end=req.event_end,
-        batch_time_tariff=req.batch_time_tariff,
+        events=req.events,
         dr_periods=req.dr_periods,
+        min_baseline_days=req.min_baseline_days,
     )
 
 
@@ -116,7 +122,7 @@ def api_day_select_required_records_settlement(req: DaySelectRequiredRequest = B
     response_model=DaySelectRequiredPostResponse,
     tags=["Day-Select: Reduction"],
     responses={
-        200: {"description": "取得需求時間窗（事件後，用於 reduction）", "content": {"application/json": {"example": DAY_SELECT_REQUIRED_POST_RESPONSE_EXAMPLE}}},
+        200: {"description": "取得需求日列表（事件後，用於 reduction；整日資料，含 20 基準日＋事件日）", "content": {"application/json": {"example": DAY_SELECT_REQUIRED_POST_RESPONSE_EXAMPLE}}},
     },
 )
 def api_day_select_required_records_reduction(req: DaySelectRequiredRequest = Body(..., example=DAY_SELECT_REQUIRED_REQUEST_EXAMPLE)):
@@ -125,6 +131,8 @@ def api_day_select_required_records_reduction(req: DaySelectRequiredRequest = Bo
         event_start=req.event_start,
         event_end=req.event_end,
         batch_time_tariff=req.batch_time_tariff,
+        dr_periods=req.dr_periods,
+        min_baseline_days=req.min_baseline_days,
     )
 
 
@@ -154,36 +162,33 @@ def api_day_select_cbl(req: DaySelectCBLRequest = Body(..., example=DAY_SELECT_C
 
 @app.post(
     "/dr/day-select/settlement",
-    response_model=DaySelectRewardResponse,
-    description="計算日選方案單次回饋金：先算 CBL/實際抑低，再套用執行率、扣減比率與費率。建議先呼叫 /dr/day-select/settlement/required-records 取得需求時間窗，確保資料齊全。",
+    response_model=DaySelectMonthlySettlementResponse,
+    description="日選方案月度結算：多事件回饋金加總，逐事件依 2/4/6 小時費率計算。建議先呼叫 /dr/day-select/settlement/required-records 取得需求時間窗，確保資料齊全。",
     tags=["Day-Select: Settlement"],
     responses={
-        200: {"description": "計算成功", "content": {"application/json": {"example": DAY_SELECT_REWARD_RESPONSE_EXAMPLE}}},
-        400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_REWARD_ERROR_EXAMPLE}}},
+        200: {"description": "計算成功", "content": {"application/json": {"example": DAY_SELECT_SETTLEMENT_MONTHLY_RESPONSE_EXAMPLE}}},
+        400: {"description": "請求錯誤"},
     },
 )
-def api_day_select_settlement(req: DaySelectRewardRequest = Body(..., example=DAY_SELECT_REWARD_REQUEST_EXAMPLE)):
-    return compute_day_select_reward(
+def api_day_select_settlement(req: DaySelectMonthlySettlementRequest = Body(..., example=DAY_SELECT_SETTLEMENT_MONTHLY_REQUEST_EXAMPLE)):
+    return compute_day_select_settlement_monthly(
         customer_id=req.customer_id,
-        event_start=req.event_start,
-        event_end=req.event_end,
-        records=req.records,
-        batch_time_tariff=req.batch_time_tariff,
-        assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
         committed_capacity_kw=req.committed_capacity_kw,
         dr_periods=req.dr_periods,
+        records=req.records,
+        events=req.events,
     )
 
 
 @app.post(
     "/dr/day-select/reduction",
-    response_model=DaySelectReductionResponse,
-    description="計算日選方案實際抑低容量（含可選執行率/扣減比率），不計算回饋金。建議先呼叫 /dr/day-select/reduction/required-records 取得需求時間窗，確保資料齊全。",
+    response_model=DaySelectRewardResponse,
+    description="計算日選方案單次抑低並計算回饋金（含 CBL/AF、執行率/減載比率與費率）。建議先呼叫 /dr/day-select/reduction/required-records 取得需求日列表，確保資料齊全。",
     tags=["Day-Select: Reduction"],
     responses={
-        200: {"description": "計算成功", "content": {"application/json": {"example": DAY_SELECT_REDUCTION_RESPONSE_EXAMPLE}}},
-        400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_REDUCTION_ERROR_EXAMPLE}}},
+        200: {"description": "計算成功", "content": {"application/json": {"example": DAY_SELECT_REWARD_RESPONSE_EXAMPLE}}},
+        400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_REWARD_ERROR_EXAMPLE}}},
     },
 )
 def api_day_select_reduction(req: DaySelectReductionRequest = Body(..., example=DAY_SELECT_REDUCTION_REQUEST_EXAMPLE)):

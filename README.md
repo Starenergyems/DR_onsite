@@ -41,6 +41,46 @@ uvicorn main:app --reload
 
 The service will listen on `http://localhost:18000/` by default.  Swagger/OpenAPI documentation is automatically generated and can be viewed at `http://localhost:18000/docs`.
 
+
+Note: required-records endpoints now return whole-day requirements via `required_days` (role = baseline/event); provide full-day 15-minute data for those dates, and the API will slice the needed windows (事件時段、22:00-24:00 for AF；事件日未提供 22-24 時段則 AF 視為 0)。日選 `reduction` 直接計算回饋金，`settlement` 為月度多事件加總。
+
+Example `required_days` (日選 CBL):
+```json
+{
+  "customer_id": "C001",
+  "required_days": [
+    {"date": "2025-06-03", "role": "baseline"},
+    … (18 more baseline) …,
+    {"date": "2025-06-30", "role": "baseline"},
+    {"date": "2025-07-01", "role": "event"}
+  ]
+}
+```
+
+Example monthly settlement request (日選):
+```json
+{
+  "customer_id": "C001",
+  "contract_capacity_kw": 120,
+  "committed_capacity_kw": 100,
+  "dr_periods": [{"start": "2025-07", "end": "2025-10"}],
+  "events": [
+    {
+      "event_start": "2025-07-01T16:00:00+08:00",
+      "event_end": "2025-07-01T22:00:00+08:00",
+      "batch_time_tariff": false,
+      "records": [ /* full-day 15-min data for baseline + event days */ ]
+    },
+    {
+      "event_start": "2025-07-08T16:00:00+08:00",
+      "event_end": "2025-07-08T22:00:00+08:00",
+      "batch_time_tariff": false,
+      "records": [ /* full-day 15-min data for baseline + event days */ ]
+    }
+  ]
+}
+```
+
 ## API Endpoints
 
 All compute endpoints take meter data inline (`records: [...]`). Validation rules:
@@ -117,26 +157,17 @@ Sample response (your numbers may differ depending on your data):
 
 ### `POST /dr/day-select/reduction`
 
-This endpoint computes the **actual load reduction** for a day‑select DR event without applying any fee formula.  It should be used **after** the dispatch instruction has been executed, once actual event demand data is available.
+This endpoint computes the **single-event reward** (含 CBL/AF、實際抑低、執行率/減載比率與費率)。建議先呼叫 `/dr/day-select/reduction/required-records` 取得需求「整日」列表，再提交整日 15 分鐘資料。
 
-The server performs the following steps:
+Steps:
+1. Compute CBL (same as `/dr/day-select/cbl`，AF 若事件日 22–24 缺資料則為 0)。
+2. Compute actual reduction = `max(cbl_kw − event_avg_kw, 0)`。
+3. Execution rate = actual_reduction ÷ committed_capacity（四檔減載比率 0/0.8/1.0/1.2，x 取一位小數、上限 1.2）。
+4. Tariff by event duration (2/4/6 hr → 2.47/1.84/1.69 NTD/kWh)，reward = committed_capacity × execution_rate × hours × tariff × reduction_ratio。
 
-1. Compute the baseline (CBL) using the same logic as `/dr/day-select/cbl`.
-2. Calculate the participant’s **actual average demand** during the event window.
-3. Compute the **actual reduction** as `max(cbl_kw − actual_avg_kw, 0)`.
+Request fields: 同原 reduction（但回傳為回饋金計算結果）。
 
-Request fields:
-
-- `customer_id` – ID of the customer.
-- `event_start` / `event_end` – start and end times of the DR event (must be 2–6 hours apart).
-- `batch_time_tariff` – whether to use the batch-time tariff window (fixed 15:30–21:30).
-- `records` – 15-minute meter records covering baseline/event windows and adjustment windows.
-- `contract_capacity_kw` – the participant’s contract capacity (CBL2)。最終 CBL 取 `min(CBL1+AF, contract_capacity_kw)`。
-- `committed_capacity_kw` – the participant’s **committed reduction capacity**（必填）。用於計算執行率與減載比率。
-- `dr_periods` – list of contract DR periods, each with `start`/`end` (YYYY-MM or YYYY-MM-DD). Event day must lie within one of these periods.
-- Optional: `assumed_af_kw` – provide an assumed 22:00–24:00 average if calculating before event-day data is available (used for AF).
-
-The response includes the baseline (`cbl_kw`), the actual average demand during the event, the actual reduction, and—if `committed_capacity_kw` is provided—the **execution rate** and **reduction ratio**.  It also returns the list of baseline source days and a `detail` object containing intermediate values such as `cbl1_kw`, `af_kw`, `hist_adjust_avg_kw`, `today_adjust_avg_kw`, and, when applicable, `execution_rate` and `reduction_ratio`.
+Response fields: 同單次 settlement（`cbl_kw`, `actual_avg_kw`, `actual_reduction_kw`, `execution_rate`, `reduction_ratio`, `tariff_rate`, `event_duration_hours`, `reward_ntd`, `detail` 等）。
 
 ### Batch production time tariff (批次生產時間電價)
 
@@ -182,7 +213,7 @@ curl -X POST http://localhost:18000/dr/day-select/settlement \
 
 ### `POST /dr/day-select/settlement`
 
-Compute the **daily electricity‑fee deduction (回饋金)** for a given DR event.  This endpoint builds upon the CBL calculation and applies Taipower’s reward formula for the day‑select plan:
+Compute the **monthly settlement** for the day-select plan. This aggregates multiple events, each using the single-event reward formula (CBL + AF + execution rate/reduction ratio + tariff by 2/4/6 hr).  This endpoint builds upon the CBL calculation and applies Taipower’s reward formula for the day‑select plan:
 
 1. Compute the CBL using the same logic as `/dr/day-select/cbl`.
 2. Determine the **actual reduction** as the difference between the CBL and the customer’s average demand during the event window (negative values are treated as zero).

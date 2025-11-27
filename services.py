@@ -19,6 +19,7 @@ from schemas import (
     GuaranteedRewardResponse,
     MeterRecord,
     RequiredWindow,
+    RequiredDay,
     DaySelectRequiredPreResponse,
     DaySelectRequiredPostResponse,
     GuaranteedRequiredPreResponse,
@@ -351,19 +352,22 @@ def compute_day_select_cbl(
 
     event_adjust_start_dt, event_adjust_end_dt = _build_window_range(event_date, adjust_start, adjust_end)
     assumed_adjust_used = False
+    today_adjust_avg = 0.0
     if assumed_af_kw is not None:
         today_adjust_avg = assumed_af_kw
         assumed_adjust_used = True
     else:
-        _ensure_full_window(customer_records, event_adjust_start_dt, event_adjust_end_dt, f"事件日 {event_date} 22:00-24:00")
-        today_recs = filter_records_cross_day(customer_records, event_date, adjust_start, adjust_end)
-        today_adjust_avg = average_kw(today_recs) or 0.0
+        try:
+            _ensure_full_window(customer_records, event_adjust_start_dt, event_adjust_end_dt, f"事件日 {event_date} 22:00-24:00")
+            today_recs = filter_records_cross_day(customer_records, event_date, adjust_start, adjust_end)
+            today_adjust_avg = average_kw(today_recs) or 0.0
+        except HTTPException:
+            # 事件日 22-24 缺資料時，依規範 AF 預設 0
+            today_adjust_avg = 0.0
     allowed_windows.append((event_adjust_start_dt, event_adjust_end_dt))
 
     event_window_start_dt, event_window_end_dt = _build_window_range(event_date, event_start_t, event_end_t)
     allowed_windows.append((event_window_start_dt, event_window_end_dt))
-
-    _reject_records_outside_windows(customer_records, allowed_windows, customer_id)
 
     load_adjust_factor = max(today_adjust_avg - hist_adjust_avg_kw, 0.0)
 
@@ -518,6 +522,7 @@ def compute_day_select_settlement_monthly(
     contract_capacity_kw: float,
     committed_capacity_kw: float,
     dr_periods: List[DRPeriod],
+    records: List[MeterRecord],
     events: List[DaySelectMonthlyEvent],
     min_baseline_days: int = 20,
 ) -> DaySelectMonthlySettlementResponse:
@@ -532,7 +537,7 @@ def compute_day_select_settlement_monthly(
             customer_id=customer_id,
             event_start=ev.event_start,
             event_end=ev.event_end,
-            records=ev.records,
+            records=records,
             batch_time_tariff=ev.batch_time_tariff,
             assumed_af_kw=ev.assumed_af_kw,
             contract_capacity_kw=contract_capacity_kw,
@@ -554,7 +559,7 @@ def compute_day_select_settlement_monthly(
     )
 
 # -------------------------
-# 日選實際抑低容量計算
+# 日選實際抑低容量計算（含回饋金）
 # -------------------------
 def compute_day_select_reduction(
     customer_id: str,
@@ -568,9 +573,8 @@ def compute_day_select_reduction(
     dr_periods: Optional[List[DRPeriod]] = None,
     min_baseline_days: int = 20,
 ):
-    _validate_day_select_capacity(contract_capacity_kw, committed_capacity_kw)
-
-    cbl_resp = compute_day_select_cbl(
+    # 直接重用單次回饋金計算，確保回傳包含 reward_ntd 等欄位
+    return compute_day_select_reward(
         customer_id=customer_id,
         event_start=event_start,
         event_end=event_end,
@@ -578,61 +582,9 @@ def compute_day_select_reduction(
         batch_time_tariff=batch_time_tariff,
         assumed_af_kw=assumed_af_kw,
         contract_capacity_kw=contract_capacity_kw,
+        committed_capacity_kw=committed_capacity_kw,
         dr_periods=dr_periods,
         min_baseline_days=min_baseline_days,
-    )
-    cbl_kw = cbl_resp.cbl_kw
-    event_start = to_taipei(cbl_resp.event_start)
-    event_end = to_taipei(cbl_resp.event_end)
-    event_date = event_start.date()
-    customer_records = validate_customer_records(records, customer_id)
-    event_window_start_dt, event_window_end_dt = _build_window_range(event_date, event_start.time(), event_end.time())
-    _ensure_full_window(customer_records, event_window_start_dt, event_window_end_dt, f"事件日 {event_date} 事件時段")
-    if event_end.date() != event_date:
-        actual_recs = filter_records_cross_day(customer_records, event_date, event_start.time(), event_end.time())
-    else:
-        actual_recs = filter_records_by_time_window(customer_records, event_date, event_start.time(), event_end.time())
-    actual_avg_kw = average_kw(actual_recs) or 0.0
-    actual_reduction_kw = max(cbl_kw - actual_avg_kw, 0.0)
-    exec_rate = None
-    reduction_ratio = None
-    if committed_capacity_kw is not None and committed_capacity_kw > 0:
-        x_ratio = actual_reduction_kw / committed_capacity_kw
-        x_ratio_rounded = round(x_ratio, 1)
-        if x_ratio_rounded > 1.2:
-            x_ratio_rounded = 1.2
-        exec_rate = x_ratio_rounded
-        if exec_rate < 0.6:
-            reduction_ratio = 0.0
-        elif exec_rate < 0.8:
-            reduction_ratio = 0.8
-        elif exec_rate < 0.95:
-            reduction_ratio = 1.0
-        else:
-            reduction_ratio = 1.2
-    detail = cbl_resp.detail.copy()
-    detail.update({
-        "actual_avg_kw": actual_avg_kw,
-        "actual_reduction_kw": actual_reduction_kw,
-    })
-    if exec_rate is not None:
-        detail.update({
-            "execution_rate": exec_rate,
-            "reduction_ratio": reduction_ratio,
-        })
-    return DaySelectReductionResponse(
-        customer_id=customer_id,
-        event_start=event_start,
-        event_end=event_end,
-        cbl_kw=cbl_kw,
-        actual_avg_kw=actual_avg_kw,
-        actual_reduction_kw=actual_reduction_kw,
-        committed_capacity_kw=committed_capacity_kw,
-        execution_rate=exec_rate,
-        reduction_ratio=reduction_ratio,
-        baseline_source_days=cbl_resp.baseline_source_days,
-        method="day-select-reduction-v1",
-        detail=detail,
     )
 
 
@@ -686,7 +638,6 @@ def compute_guaranteed_event(
     _ensure_full_window(customer_records, event_start, event_end, "事件時段")
 
     allowed_windows = [(baseline_start, baseline_end), (event_start, event_end)]
-    _reject_records_outside_windows(customer_records, allowed_windows, customer_id)
 
     baseline_records = filter_records_between(customer_records, baseline_start, baseline_end)
     baseline_kw = average_kw(baseline_records) or 0.0
@@ -818,7 +769,6 @@ def compute_guaranteed_reward(
         allowed_windows.append((baseline_start, baseline_end))
         allowed_windows.append((ev_start, ev_end))
 
-    _reject_records_outside_windows(customer_records, allowed_windows, customer_id)
 
     event_details: List[GuaranteedEventDetail] = []
     execution_rates: List[float] = []
@@ -994,31 +944,17 @@ def build_day_select_required_windows(
     if len(baseline_days) < min_baseline_days:
         raise HTTPException(400, f"資料不足以形成前 {min_baseline_days} 個合格日（已回溯至上一個 11/1），只找到 {len(baseline_days)} 日")
 
-    windows: List[RequiredWindow] = []
-    event_start_t = event_start.time()
-    event_end_t = event_end.time()
-    adjust_start = time(22, 0)
-    adjust_end = time(0, 0)
-
+    required_days: List[RequiredDay] = []
     for d in baseline_days:
-        start_dt, end_dt = _build_window_range(d, event_start_t, event_end_t)
-        windows.append(RequiredWindow(label=f"基準日 {d} 事件時段", start=start_dt, end=end_dt))
-        adj_start_dt, adj_end_dt = _build_window_range(d, adjust_start, adjust_end)
-        windows.append(RequiredWindow(label=f"基準日 {d} 22:00-24:00", start=adj_start_dt, end=adj_end_dt))
+        required_days.append(RequiredDay(date=d, role="baseline"))
+    required_days.append(RequiredDay(date=event_date, role="event"))
 
-    event_start_dt, event_end_dt = _build_window_range(event_date, event_start_t, event_end_t)
-    windows.append(RequiredWindow(label=f"事件日 {event_date} 事件時段", start=event_start_dt, end=event_end_dt))
-    adj_start_dt, adj_end_dt = _build_window_range(event_date, adjust_start, adjust_end)
-    windows.append(
-        RequiredWindow(
-            label=f"事件日 {event_date} 22:00-24:00（若未提供 assumed_af_kw 則必填）",
-            start=adj_start_dt,
-            end=adj_end_dt,
-            optional=True,
-        )
+    return DaySelectRequiredPreResponse(
+        customer_id=customer_id,
+        baseline_days=sorted(baseline_days),
+        windows=[],
+        required_days=required_days,
     )
-
-    return DaySelectRequiredPreResponse(customer_id=customer_id, baseline_days=sorted(baseline_days), windows=windows)
 
 
 def build_day_select_required_windows_post(
@@ -1027,10 +963,52 @@ def build_day_select_required_windows_post(
     event_end: datetime,
     batch_time_tariff: bool = False,
     dr_periods: Optional[List[DRPeriod]] = None,
+    min_baseline_days: int = 20,
 ) -> DaySelectRequiredPostResponse:
-    # 回傳全集：CBL 需求視窗（含基準日/事件日 22:00-24:00）＋事件時段
-    pre = build_day_select_required_windows(customer_id, event_start, event_end, batch_time_tariff, dr_periods, 20)
-    return DaySelectRequiredPostResponse(customer_id=customer_id, windows=pre.windows)
+    pre = build_day_select_required_windows(
+        customer_id,
+        event_start,
+        event_end,
+        batch_time_tariff,
+        dr_periods,
+        min_baseline_days,
+    )
+    return DaySelectRequiredPostResponse(customer_id=customer_id, windows=[], required_days=pre.required_days)
+
+
+def build_day_select_settlement_required(
+    customer_id: str,
+    events: List[DaySelectMonthlyEvent],
+    dr_periods: Optional[List[DRPeriod]] = None,
+    min_baseline_days: int = 20,
+) -> DaySelectRequiredPostResponse:
+    if not events:
+        raise HTTPException(400, "events 不可為空")
+    if not dr_periods:
+        raise HTTPException(400, "dr_periods 必填")
+
+    required_days: List[RequiredDay] = []
+    for ev in events:
+        per_event = build_day_select_required_windows(
+            customer_id=customer_id,
+            event_start=ev.event_start,
+            event_end=ev.event_end,
+            batch_time_tariff=ev.batch_time_tariff,
+            dr_periods=dr_periods,
+            min_baseline_days=min_baseline_days,
+        )
+        required_days.extend(per_event.required_days)
+
+    # 去重並排序
+    seen = set()
+    unique_days: List[RequiredDay] = []
+    for rd in sorted(required_days, key=lambda r: (r.date, r.role)):
+        key = (rd.date, rd.role)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_days.append(rd)
+    return DaySelectRequiredPostResponse(customer_id=customer_id, windows=[], required_days=unique_days)
 
 
 def build_guaranteed_required_windows(

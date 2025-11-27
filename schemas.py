@@ -76,7 +76,6 @@ class DaySelectMonthlyEvent(BaseModel):
     event_start: datetime
     event_end: datetime
     batch_time_tariff: bool
-    records: List[MeterRecord]
     assumed_af_kw: Optional[float] = Field(None, description="事件前可預估 22:00-24:00 平均需量（用於 AF）")
     committed_capacity_kw: Optional[float] = Field(None, description="事件層級約定抑低容量，未提供則用月度值")
 
@@ -86,6 +85,7 @@ class DaySelectMonthlySettlementRequest(BaseModel):
     contract_capacity_kw: float
     committed_capacity_kw: float
     dr_periods: List[DRPeriod]
+    records: List[MeterRecord]
     events: List[DaySelectMonthlyEvent]
 
 
@@ -244,10 +244,23 @@ class DaySelectRequiredRequest(BaseModel):
     dr_periods: List[DRPeriod]
 
 
+class DaySelectSettlementRequiredRequest(BaseModel):
+    customer_id: str
+    events: List[DaySelectMonthlyEvent]
+    min_baseline_days: int = 20
+    dr_periods: List[DRPeriod]
+
+
+class RequiredDay(BaseModel):
+    date: date
+    role: str  # "baseline" or "event"
+
+
 class DaySelectRequiredResponse(BaseModel):
     customer_id: str
     baseline_days: List[date]
-    windows: List[RequiredWindow]
+    windows: List[RequiredWindow] = []
+    required_days: List[RequiredDay] = []
 
 
 class GuaranteedRequiredRequest(BaseModel):
@@ -270,7 +283,8 @@ class DaySelectRequiredPreResponse(DaySelectRequiredResponse):
 
 class DaySelectRequiredPostResponse(BaseModel):
     customer_id: str
-    windows: List[RequiredWindow]
+    windows: List[RequiredWindow] = []
+    required_days: List[RequiredDay] = []
 
 
 class GuaranteedRequiredPreResponse(GuaranteedRequiredResponse):
