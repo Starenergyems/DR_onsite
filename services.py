@@ -272,6 +272,7 @@ def compute_day_select_cbl(
     event_end: datetime,
     records: List[MeterRecord],
     contract_capacity_kw: float,
+    committed_capacity_kw: float,
     dr_periods: Optional[List[DRPeriod]] = None,
     batch_time_tariff: bool = False,
     assumed_af_kw: Optional[float] = None,
@@ -282,7 +283,7 @@ def compute_day_select_cbl(
     if event_end <= event_start:
         raise HTTPException(400, "event_end 必須晚於 event_start")
 
-    _validate_day_select_capacity(contract_capacity_kw)
+    _validate_day_select_capacity(contract_capacity_kw, committed_capacity_kw)
 
     event_date = event_start.date()
 
@@ -389,11 +390,14 @@ def compute_day_select_cbl(
     if assumed_adjust_used:
         detail["assumed_af_kw"] = assumed_af_kw
 
+    target_load_kw = final_cbl - committed_capacity_kw
+
     return DaySelectCBLResponse(
         customer_id=customer_id,
         event_start=event_start,
         event_end=event_end,
         cbl_kw=final_cbl,
+        target_load_kw=target_load_kw,
         baseline_source_days=sorted(baseline_days),
         method="day-select-cbl-v1",
         detail=detail,
@@ -425,6 +429,7 @@ def compute_day_select_reward(
         batch_time_tariff=batch_time_tariff,
         assumed_af_kw=assumed_af_kw,
         contract_capacity_kw=contract_capacity_kw,
+        committed_capacity_kw=committed_capacity_kw,
         dr_periods=dr_periods,
         min_baseline_days=min_baseline_days,
     )

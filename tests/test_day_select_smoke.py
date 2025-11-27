@@ -104,6 +104,7 @@ def test_day_select_end_to_end_smoke(sample_records, dr_periods):
         records=sample_records,
         batch_time_tariff=False,
         contract_capacity_kw=contract_capacity_kw,
+        committed_capacity_kw=committed_capacity_kw,
         dr_periods=dr_periods,
     )
     # Synthetic load keeps CBL near 100 kW.
@@ -119,14 +120,16 @@ def test_day_select_end_to_end_smoke(sample_records, dr_periods):
         _preview_list([f"{r.timestamp.isoformat()}|{r.kw}" for r in sample_records], n=5),
     )
     logger.info(
-        "STEP 3 RESP CBL: cbl_kw=%.3f, baseline_days=%s, baseline_source_days=%s, detail=%s",
+        "STEP 3 RESP CBL: cbl_kw=%.3f, target_load_kw=%.3f, baseline_days=%s, baseline_source_days=%s, detail=%s",
         cbl_resp.cbl_kw,
+        cbl_resp.target_load_kw,
         len(cbl_resp.baseline_source_days),
         cbl_resp.baseline_source_days,
         cbl_resp.detail,
     )
     assert len(cbl_resp.baseline_source_days) == 20
     assert cbl_resp.cbl_kw == pytest.approx(100.0, rel=1e-3)
+    assert cbl_resp.target_load_kw == pytest.approx(cbl_resp.cbl_kw - committed_capacity_kw, rel=1e-3)
 
     post_required = build_day_select_required_windows_post(
         customer_id="C001",

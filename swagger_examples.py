@@ -112,6 +112,7 @@ def _build_day_select_cbl_response():
         batch_time_tariff=req.batch_time_tariff,
         assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
+        committed_capacity_kw=req.committed_capacity_kw,
         dr_periods=req.dr_periods,
     )
     return resp.model_dump()
@@ -171,6 +172,7 @@ def _build_day_select_cbl_error():
         batch_time_tariff=req.batch_time_tariff,
         assumed_af_kw=req.assumed_af_kw,
         contract_capacity_kw=req.contract_capacity_kw,
+        committed_capacity_kw=req.committed_capacity_kw,
         dr_periods=req.dr_periods,
     )
     raise RuntimeError("預期錯誤示例，但計算成功")

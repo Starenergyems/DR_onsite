@@ -28,6 +28,7 @@ class DaySelectCBLRequest(BaseModel):
     )
     records: List[MeterRecord]
     contract_capacity_kw: float
+    committed_capacity_kw: float = Field(..., description="約定抑低契約容量，用於目標負載計算")
     dr_periods: List[DRPeriod] = Field(..., description="與台電簽訂的抑低期間清單，起訖含當日")
 
 
@@ -36,6 +37,7 @@ class DaySelectCBLResponse(BaseModel):
     event_start: datetime
     event_end: datetime
     cbl_kw: float
+    target_load_kw: float
     baseline_source_days: List[date]
     method: str
     detail: Dict[str, Any]
