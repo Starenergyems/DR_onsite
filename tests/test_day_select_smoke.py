@@ -183,8 +183,9 @@ def test_day_select_end_to_end_smoke(sample_records, dr_periods):
         _preview_list([f"{r.timestamp.isoformat()}|{r.kw}" for r in sample_records], n=5),
     )
     logger.info(
-        "STEP 6 RESP reduction: cbl_kw=%.3f, actual_avg_kw=%.3f, actual_reduction_kw=%.3f, execution_rate=%.3f, reduction_ratio=%.3f, reward_ntd=%.2f",
+        "STEP 6 RESP reduction: cbl_kw=%.3f, target_load_kw=%.3f, actual_avg_kw=%.3f, actual_reduction_kw=%.3f, execution_rate=%.3f, reduction_ratio=%.3f, reward_ntd=%.2f",
         reduction_resp.cbl_kw,
+        reduction_resp.target_load_kw,
         reduction_resp.actual_avg_kw,
         reduction_resp.actual_reduction_kw,
         reduction_resp.execution_rate,
@@ -195,6 +196,7 @@ def test_day_select_end_to_end_smoke(sample_records, dr_periods):
     assert reduction_resp.actual_reduction_kw > 0
     assert reduction_resp.reward_ntd > 0
     assert reduction_resp.execution_rate >= 0.8
+    assert reduction_resp.target_load_kw == pytest.approx(reduction_resp.cbl_kw - committed_capacity_kw, rel=1e-3)
 
     events = [
         DaySelectMonthlyEvent(event_start=event_start_1, event_end=event_end_1, batch_time_tariff=False),

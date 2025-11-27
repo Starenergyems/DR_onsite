@@ -70,6 +70,7 @@ class DaySelectRewardResponse(BaseModel):
     tariff_rate: float
     event_duration_hours: float
     reward_ntd: float
+    target_load_kw: float
     baseline_source_days: List[date]
     method: str
     detail: Dict[str, Any]
@@ -125,6 +126,7 @@ class DaySelectReductionResponse(BaseModel):
     committed_capacity_kw: Optional[float] = None
     execution_rate: Optional[float] = None
     reduction_ratio: Optional[float] = None
+    target_load_kw: Optional[float] = None
     baseline_source_days: List[date]
     method: str
     detail: Dict[str, Any]

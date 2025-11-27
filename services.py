@@ -448,6 +448,7 @@ def compute_day_select_reward(
     actual_avg_kw = average_kw(actual_recs) or 0.0
 
     actual_reduction_kw = max(cbl_kw - actual_avg_kw, 0.0)
+    target_load_kw = cbl_kw - committed_capacity_kw
 
     if committed_capacity_kw <= 0:
         raise HTTPException(400, "committed_capacity_kw 必須為正值")
@@ -497,6 +498,7 @@ def compute_day_select_reward(
             "tariff_rate": tariff_rate,
             "event_duration_hours": event_duration_hours,
             "reward_ntd": reward_ntd,
+            "target_load_kw": target_load_kw,
         }
     )
 
@@ -513,6 +515,7 @@ def compute_day_select_reward(
         tariff_rate=tariff_rate,
         event_duration_hours=event_duration_hours,
         reward_ntd=reward_ntd,
+        target_load_kw=target_load_kw,
         baseline_source_days=cbl_resp.baseline_source_days,
         method="day-select-reward-v1",
         detail=detail,
