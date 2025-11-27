@@ -22,6 +22,7 @@ from schemas import (
     GuaranteedRequiredRequest,
     GuaranteedRequiredPreResponse,
     GuaranteedRequiredPostResponse,
+    GuaranteedSettlementRequiredRequest,
 )
 from services import (
     compute_day_select_cbl,
@@ -33,9 +34,11 @@ from services import (
     build_day_select_required_windows_post,
     compute_guaranteed_cbl,
     compute_guaranteed_event,
+    compute_guaranteed_reduction_simple,
     compute_guaranteed_reward,
     build_guaranteed_required_windows,
     build_guaranteed_required_windows_post,
+    build_guaranteed_settlement_required,
 )
 from swagger_examples import (
     DAY_SELECT_CBL_ERROR_EXAMPLE,
@@ -61,6 +64,7 @@ from swagger_examples import (
     GUARANTEED_REWARD_ERROR_EXAMPLE,
     GUARANTEED_REWARD_RESPONSE_EXAMPLE,
     GUARANTEED_REWARD_REQUEST_EXAMPLE,
+    GUARANTEED_SETTLEMENT_REQUIRED_RESPONSE_EXAMPLE,
     GUARANTEED_REQUIRED_RESPONSE_EXAMPLE,
     GUARANTEED_REQUIRED_POST_RESPONSE_EXAMPLE,
     GUARANTEED_REQUIRED_REQUEST_EXAMPLE_PRE,
@@ -211,7 +215,7 @@ def api_day_select_reduction(req: DaySelectReductionRequest = Body(..., examples
     response_model=GuaranteedRequiredPreResponse,
     tags=["Guaranteed: CBL"],
     responses={
-        200: {"description": "取得需求時間窗（事件前，用於 CBL 計算）", "content": {"application/json": {"example": GUARANTEED_REQUIRED_RESPONSE_EXAMPLE}}},
+        200: {"description": "取得需求日列表（事件前，用於 CBL 計算；整日資料，事件日）", "content": {"application/json": {"example": GUARANTEED_REQUIRED_RESPONSE_EXAMPLE}}},
     },
 )
 def api_guaranteed_required_records_pre(req: GuaranteedRequiredRequest = Body(..., examples={"default": GUARANTEED_REQUIRED_REQUEST_EXAMPLE_PRE})):
@@ -230,7 +234,7 @@ def api_guaranteed_required_records_pre(req: GuaranteedRequiredRequest = Body(..
     response_model=GuaranteedRequiredPostResponse,
     tags=["Guaranteed: Settlement"],
     responses={
-        200: {"description": "取得需求時間窗（事件後，用於 reward/reduction）", "content": {"application/json": {"example": GUARANTEED_REQUIRED_POST_RESPONSE_EXAMPLE}}},
+        200: {"description": "取得需求日列表（事件後，用於 reward/reduction；整日資料，事件日）", "content": {"application/json": {"example": GUARANTEED_REQUIRED_POST_RESPONSE_EXAMPLE}}},
     },
 )
 def api_guaranteed_required_records_reward(req: GuaranteedRequiredRequest = Body(..., examples={"default": GUARANTEED_REQUIRED_REQUEST_EXAMPLE_POST})):
@@ -249,7 +253,7 @@ def api_guaranteed_required_records_reward(req: GuaranteedRequiredRequest = Body
     response_model=GuaranteedRequiredPostResponse,
     tags=["Guaranteed: Reduction"],
     responses={
-        200: {"description": "取得需求時間窗（事件後，用於 reward/reduction）", "content": {"application/json": {"example": GUARANTEED_REQUIRED_POST_RESPONSE_EXAMPLE}}},
+        200: {"description": "取得需求日列表（事件後，用於 reward/reduction；整日資料，事件日）", "content": {"application/json": {"example": GUARANTEED_REQUIRED_POST_RESPONSE_EXAMPLE}}},
     },
 )
 def api_guaranteed_required_records_reduction(req: GuaranteedRequiredRequest = Body(..., examples={"default": GUARANTEED_REQUIRED_REQUEST_EXAMPLE_POST})):
@@ -258,6 +262,22 @@ def api_guaranteed_required_records_reduction(req: GuaranteedRequiredRequest = B
         event_start=req.event_start,
         event_end=req.event_end,
         notification_minutes_before=req.notification_minutes_before,
+        dr_periods=req.dr_periods,
+    )
+
+
+@app.post(
+    "/dr/guaranteed/settlement/required-records",
+    response_model=GuaranteedRequiredPostResponse,
+    tags=["Guaranteed: Settlement"],
+    responses={
+        200: {"description": "取得需求日列表（事件後，用於月度 settlement；整日資料，事件日）", "content": {"application/json": {"example": GUARANTEED_SETTLEMENT_REQUIRED_RESPONSE_EXAMPLE}}},
+    },
+)
+def api_guaranteed_required_records_settlement(req: GuaranteedSettlementRequiredRequest):
+    return build_guaranteed_settlement_required(
+        customer_id=req.customer_id,
+        events=req.events,
         dr_periods=req.dr_periods,
     )
 

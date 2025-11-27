@@ -15,6 +15,7 @@ from schemas import (
     GuaranteedEventRequest,
     GuaranteedRewardRequest,
     GuaranteedRequiredRequest,
+    GuaranteedSettlementRequiredRequest,
 )
 from services import (
     compute_day_select_cbl,
@@ -28,6 +29,7 @@ from services import (
     compute_guaranteed_reward,
     build_guaranteed_required_windows,
     build_guaranteed_required_windows_post,
+    build_guaranteed_settlement_required,
 )
 
 SAMPLES_DIR = Path(__file__).parent / "samples"
@@ -100,6 +102,11 @@ GUARANTEED_REQUIRED_REQUEST_EXAMPLE_PRE = {
     "dr_periods": GUARANTEED_REWARD_REQUEST_EXAMPLE.get("dr_periods", []),
 }
 GUARANTEED_REQUIRED_REQUEST_EXAMPLE_POST = GUARANTEED_REQUIRED_REQUEST_EXAMPLE_PRE.copy()
+GUARANTEED_SETTLEMENT_REQUIRED_REQUEST_EXAMPLE = {
+    "customer_id": "G001",
+    "events": GUARANTEED_REWARD_REQUEST_EXAMPLE["events"],
+    "dr_periods": GUARANTEED_REWARD_REQUEST_EXAMPLE.get("dr_periods", []),
+}
 
 
 def _build_day_select_cbl_response():
@@ -327,6 +334,7 @@ def _build_day_select_required_response():
         event_start=req.event_start,
         event_end=req.event_end,
         batch_time_tariff=req.batch_time_tariff,
+        dr_periods=req.dr_periods,
         min_baseline_days=req.min_baseline_days,
     )
     return resp.model_dump()
@@ -352,6 +360,7 @@ def _build_guaranteed_required_response():
         event_start=req.event_start,
         event_end=req.event_end,
         notification_minutes_before=req.notification_minutes_before,
+        dr_periods=req.dr_periods,
     )
     return resp.model_dump()
 
@@ -363,6 +372,17 @@ def _build_guaranteed_required_post_response():
         event_start=req.event_start,
         event_end=req.event_end,
         notification_minutes_before=req.notification_minutes_before,
+        dr_periods=req.dr_periods,
+    )
+    return resp.model_dump()
+
+
+def _build_guaranteed_settlement_required_response():
+    req = GuaranteedSettlementRequiredRequest.model_validate(GUARANTEED_SETTLEMENT_REQUIRED_REQUEST_EXAMPLE)
+    resp = build_guaranteed_settlement_required(
+        customer_id=req.customer_id,
+        events=req.events,
+        dr_periods=req.dr_periods,
     )
     return resp.model_dump()
 
@@ -385,3 +405,4 @@ DAY_SELECT_REQUIRED_RESPONSE_EXAMPLE = _build_or_error(_build_day_select_require
 DAY_SELECT_REQUIRED_POST_RESPONSE_EXAMPLE = _build_or_error(_build_day_select_required_post_response)
 GUARANTEED_REQUIRED_RESPONSE_EXAMPLE = _build_or_error(_build_guaranteed_required_response)
 GUARANTEED_REQUIRED_POST_RESPONSE_EXAMPLE = _build_or_error(_build_guaranteed_required_post_response)
+GUARANTEED_SETTLEMENT_REQUIRED_RESPONSE_EXAMPLE = _build_or_error(_build_guaranteed_settlement_required_response)

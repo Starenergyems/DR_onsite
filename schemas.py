@@ -159,6 +159,7 @@ class GuaranteedEventDetail(BaseModel):
     event_duration_hours: float
     flow_reduction_amount: float
     extra_charge_amount: float
+    target_load_kw: float
     detail: Dict[str, Any]
 
 
@@ -172,6 +173,7 @@ class GuaranteedEventResponse(BaseModel):
     event_duration_hours: float
     flow_reduction_amount: float
     extra_charge_amount: float
+    target_load_kw: float
     detail: Dict[str, Any]
 
 
@@ -228,6 +230,7 @@ class GuaranteedCBLResponse(BaseModel):
     event_start: datetime
     notification_minutes_before: int
     baseline_kw: float
+    target_load_kw: float
     detail: Dict[str, Any]
 
 
@@ -263,7 +266,6 @@ class RequiredDay(BaseModel):
 class DaySelectRequiredResponse(BaseModel):
     customer_id: str
     baseline_days: List[date]
-    windows: List[RequiredWindow] = []
     required_days: List[RequiredDay] = []
 
 
@@ -275,9 +277,15 @@ class GuaranteedRequiredRequest(BaseModel):
     dr_periods: List[DRPeriod]
 
 
+class GuaranteedSettlementRequiredRequest(BaseModel):
+    customer_id: str
+    events: List[GuaranteedRewardEvent]
+    dr_periods: List[DRPeriod]
+
+
 class GuaranteedRequiredResponse(BaseModel):
     customer_id: str
-    windows: List[RequiredWindow]
+    required_days: List[RequiredDay]
 
 
 # 新增：區分前/後階段需求
@@ -287,7 +295,6 @@ class DaySelectRequiredPreResponse(DaySelectRequiredResponse):
 
 class DaySelectRequiredPostResponse(BaseModel):
     customer_id: str
-    windows: List[RequiredWindow] = []
     required_days: List[RequiredDay] = []
 
 
@@ -297,4 +304,4 @@ class GuaranteedRequiredPreResponse(GuaranteedRequiredResponse):
 
 class GuaranteedRequiredPostResponse(BaseModel):
     customer_id: str
-    windows: List[RequiredWindow]
+    required_days: List[RequiredDay]

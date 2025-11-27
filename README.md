@@ -85,8 +85,7 @@ Example monthly settlement request (日選):
 
 All compute endpoints take meter data inline (`records: [...]`). Validation rules:
 - Timestamps must align to 15‑minute boundaries; no duplicates per customer.
-- Required windows must be gap‑free (baseline event windows, 22:00–24:00 windows, and event windows).
-- Records outside the required windows for that request are rejected.
+- 送入 `required_days` 列出的「整日」15 分鐘資料（起始不含、結束含），API 會自動挑出需要的視窗並檢查缺漏；多餘資料不會被拒絕。
 
 ### `POST /dr/day-select/cbl`
 
@@ -96,7 +95,7 @@ Compute the CBL for a given DR event.  The request body must include:
 - `event_start` – start time of the DR event (ISO 8601 with time zone)
 - `event_end`   – end time of the DR event (must be later than the start time)
 - `batch_time_tariff` – whether to use the batch-time tariff window (fixed 15:30–21:30)
-- `records` – 15-minute meter records covering the baseline weekdays’ event windows, their 22:00–24:00 windows, and the event day’s event/22:00–24:00 windows.
+- `records` – 15-minute meter records covering `required_days`（整日 15 分鐘，起始不含、結束含）；系統會自動擷取事件時段與 22:00–24:00 所需片段。
 - `contract_capacity_kw` – the participant’s contract capacity in kW (CBL2).  The final CBL is the smaller of `CBL1 + AF` and this contract capacity
 - `dr_periods` – list of contract DR periods, each with `start`/`end` (YYYY-MM or YYYY-MM-DD). Event day must lie within one of these periods.
 - Optional: `assumed_af_kw` – if computing before the event and you do not have event-day 22:00–24:00 data, provide an assumed average (used for AF); otherwise AF uses actual data.
@@ -394,7 +393,7 @@ Compute the **monthly electricity‑fee adjustment** for a guaranteed response p
 - `committed_capacity_kw` – the monthly committed reduction capacity (required).
 - `dr_periods` – list of contract DR periods (`start`/`end`, YYYY-MM or YYYY-MM-DD); all event days must fall within one of them.
 - `events` – a list of objects describing each event in the month (each object must include `event_start`, `event_end`, and optionally `basic_fee_rate` and `flow_fee_rate`; you may override committed capacity per event).
-- `records` – 15-minute meter records covering all notification/event windows referenced by the events.
+- `records` – 15-minute meter records covering the event dates listed in `required_days`（整日 15 分鐘），系統會自動擷取通知前 2 小時與事件時段。
 - Optional: `basic_fee_rate` and `flow_fee_rate` – override the default rates for all events.
 
 The endpoint calculates, for each event, the baseline, reduction, execution rate, flow reduction and extra charge.  It then computes the average execution rate for the month, applies the appropriate reduction ratio to the basic fee, sums the flow reductions and extra charges, and returns the net reward.

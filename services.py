@@ -18,7 +18,6 @@ from schemas import (
     GuaranteedRewardEvent,
     GuaranteedRewardResponse,
     MeterRecord,
-    RequiredWindow,
     RequiredDay,
     DaySelectRequiredPreResponse,
     DaySelectRequiredPostResponse,
@@ -665,6 +664,8 @@ def compute_guaranteed_event(
     )
     exec_rate_rounded = min(float(exec_rate_pct) / 100.0, 1.0)
 
+    target_load_kw = baseline_kw - committed_capacity_kw
+
     flow_reduction_amount = 0.0
     if exec_rate_rounded >= 0.7:
         flow_reduction_amount = actual_reduction_kw * event_duration_hours * flow_fee_rate
@@ -682,6 +683,7 @@ def compute_guaranteed_event(
         "execution_rate": exec_rate_rounded,
         "capacity_denom_kw": capacity_denom,
         "committed_capacity_kw": committed_capacity_kw,
+        "target_load_kw": target_load_kw,
         "event_duration_hours": event_duration_hours,
         "flow_fee_rate": flow_fee_rate,
         "flow_reduction_amount": flow_reduction_amount,
@@ -698,6 +700,7 @@ def compute_guaranteed_event(
         event_duration_hours=event_duration_hours,
         flow_reduction_amount=flow_reduction_amount,
         extra_charge_amount=extra_charge_amount,
+        target_load_kw=target_load_kw,
         detail=detail,
     )
 
@@ -763,7 +766,6 @@ def compute_guaranteed_reward(
 
     customer_records = validate_customer_records(records, customer_id)
 
-    allowed_windows: List[tuple] = []
     for ev in events:
         ev_start = to_taipei(ev.event_start)
         ev_end = to_taipei(ev.event_end)
@@ -774,8 +776,6 @@ def compute_guaranteed_reward(
             raise HTTPException(400, "事件日期未落在合約約定的抑低期間")
         baseline_end = ev_start - timedelta(minutes=notification_minutes_before)
         baseline_start = baseline_end - timedelta(hours=2)
-        allowed_windows.append((baseline_start, baseline_end))
-        allowed_windows.append((ev_start, ev_end))
 
 
     event_details: List[GuaranteedEventDetail] = []
@@ -803,6 +803,7 @@ def compute_guaranteed_reward(
             records=event_records,
             basic_fee_rate=basic_fee_rate,
             flow_fee_rate=flow_fee_rate,
+            dr_periods=dr_periods,
         )
         execution_rates.append(result.execution_rate)
         flow_total += result.flow_reduction_amount
@@ -818,6 +819,7 @@ def compute_guaranteed_reward(
                 event_duration_hours=result.event_duration_hours,
                 flow_reduction_amount=result.flow_reduction_amount,
                 extra_charge_amount=result.extra_charge_amount,
+                target_load_kw=result.target_load_kw,
                 detail=result.detail,
             )
         )
@@ -902,19 +904,22 @@ def compute_guaranteed_cbl(
     baseline_end = notification_time
     customer_records = validate_customer_records(records, customer_id)
     _ensure_full_window(customer_records, baseline_start, baseline_end, "通知前 2 小時")
-    _reject_records_outside_windows(customer_records, [(baseline_start, baseline_end)], customer_id)
     baseline_records = filter_records_between(customer_records, baseline_start, baseline_end)
     baseline_kw = average_kw(baseline_records) or 0.0
+    target_load_kw = baseline_kw - committed_capacity_kw
     detail = {
         "baseline_start": baseline_start.isoformat(),
         "baseline_end": baseline_end.isoformat(),
         "baseline_kw": baseline_kw,
+        "target_load_kw": target_load_kw,
+        "committed_capacity_kw": committed_capacity_kw,
     }
     return GuaranteedCBLResponse(
         customer_id=customer_id,
         event_start=event_start,
         notification_minutes_before=notification_minutes_before,
         baseline_kw=baseline_kw,
+        target_load_kw=target_load_kw,
         detail=detail,
     )
 
@@ -960,7 +965,6 @@ def build_day_select_required_windows(
     return DaySelectRequiredPreResponse(
         customer_id=customer_id,
         baseline_days=sorted(baseline_days),
-        windows=[],
         required_days=required_days,
     )
 
@@ -981,7 +985,7 @@ def build_day_select_required_windows_post(
         dr_periods,
         min_baseline_days,
     )
-    return DaySelectRequiredPostResponse(customer_id=customer_id, windows=[], required_days=pre.required_days)
+    return DaySelectRequiredPostResponse(customer_id=customer_id, required_days=pre.required_days)
 
 
 def build_day_select_settlement_required(
@@ -1016,7 +1020,37 @@ def build_day_select_settlement_required(
             continue
         seen.add(key)
         unique_days.append(rd)
-    return DaySelectRequiredPostResponse(customer_id=customer_id, windows=[], required_days=unique_days)
+    return DaySelectRequiredPostResponse(customer_id=customer_id, required_days=unique_days)
+
+
+def build_guaranteed_settlement_required(
+    customer_id: str,
+    events: List[GuaranteedRewardEvent],
+    dr_periods: Optional[List[DRPeriod]] = None,
+) -> GuaranteedRequiredPostResponse:
+    if not events:
+        raise HTTPException(400, "events 不可為空")
+    if not dr_periods:
+        raise HTTPException(400, "dr_periods 必填")
+    dr_period_ranges = parse_dr_periods(dr_periods)
+    required_days: List[RequiredDay] = []
+    for ev in events:
+        ev_start = to_taipei(ev.event_start)
+        ev_end = to_taipei(ev.event_end)
+        _validate_guaranteed_event_window(ev_start, ev_end)
+        if not is_in_dr_period(ev_start.date(), dr_period_ranges):
+            raise HTTPException(400, "事件日期未落在合約約定的抑低期間")
+        required_days.append(RequiredDay(date=ev_start.date(), role="event"))
+    # 去重
+    seen = set()
+    unique: List[RequiredDay] = []
+    for rd in sorted(required_days, key=lambda r: (r.date, r.role)):
+        key = (rd.date, rd.role)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(rd)
+    return GuaranteedRequiredPostResponse(customer_id=customer_id, required_days=unique)
 
 
 def build_guaranteed_required_windows(
@@ -1038,13 +1072,8 @@ def build_guaranteed_required_windows(
     dr_period_ranges = parse_dr_periods(dr_periods)
     if not is_in_dr_period(event_start.date(), dr_period_ranges):
         raise HTTPException(400, "事件日期未落在合約約定的抑低期間")
-    notification_time = event_start - timedelta(minutes=notification_minutes_before)
-    baseline_start = notification_time - timedelta(hours=2)
-    baseline_end = notification_time
-    windows = [
-        RequiredWindow(label="通知前 2 小時", start=baseline_start, end=baseline_end),
-    ]
-    return GuaranteedRequiredPreResponse(customer_id=customer_id, windows=windows)
+    required_days = [RequiredDay(date=event_start.date(), role="event")]
+    return GuaranteedRequiredPreResponse(customer_id=customer_id, required_days=required_days)
 
 
 def build_guaranteed_required_windows_post(
@@ -1066,11 +1095,5 @@ def build_guaranteed_required_windows_post(
     dr_period_ranges = parse_dr_periods(dr_periods)
     if not is_in_dr_period(event_start.date(), dr_period_ranges):
         raise HTTPException(400, "事件日期未落在合約約定的抑低期間")
-    notification_time = event_start - timedelta(minutes=notification_minutes_before)
-    baseline_start = notification_time - timedelta(hours=2)
-    baseline_end = notification_time
-    windows = [
-        RequiredWindow(label="通知前 2 小時", start=baseline_start, end=baseline_end),
-        RequiredWindow(label="事件時段", start=event_start, end=event_end),
-    ]
-    return GuaranteedRequiredPostResponse(customer_id=customer_id, windows=windows)
+    required_days = [RequiredDay(date=event_start.date(), role="event")]
+    return GuaranteedRequiredPostResponse(customer_id=customer_id, required_days=required_days)
