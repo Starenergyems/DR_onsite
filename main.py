@@ -87,7 +87,7 @@ app = FastAPI(
         200: {"description": "取得需求日列表（事件前，用於 CBL 計算；整日資料，含 20 基準日＋事件日）", "content": {"application/json": {"example": DAY_SELECT_REQUIRED_RESPONSE_EXAMPLE}}},
     },
 )
-def api_day_select_required_records_pre(req: DaySelectRequiredRequest = Body(..., example=DAY_SELECT_REQUIRED_REQUEST_EXAMPLE)):
+def api_day_select_required_records_pre(req: DaySelectRequiredRequest = Body(..., examples={"default": DAY_SELECT_REQUIRED_REQUEST_EXAMPLE})):
     return build_day_select_required_windows(
         customer_id=req.customer_id,
         event_start=req.event_start,
@@ -125,7 +125,7 @@ def api_day_select_required_records_settlement(req: DaySelectSettlementRequiredR
         200: {"description": "取得需求日列表（事件後，用於 reduction；整日資料，含 20 基準日＋事件日）", "content": {"application/json": {"example": DAY_SELECT_REQUIRED_POST_RESPONSE_EXAMPLE}}},
     },
 )
-def api_day_select_required_records_reduction(req: DaySelectRequiredRequest = Body(..., example=DAY_SELECT_REQUIRED_REQUEST_EXAMPLE)):
+def api_day_select_required_records_reduction(req: DaySelectRequiredRequest = Body(..., examples={"default": DAY_SELECT_REQUIRED_REQUEST_EXAMPLE})):
     return build_day_select_required_windows_post(
         customer_id=req.customer_id,
         event_start=req.event_start,
@@ -147,7 +147,7 @@ def api_day_select_required_records_reduction(req: DaySelectRequiredRequest = Bo
         400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_CBL_ERROR_EXAMPLE}}},
     },
 )
-def api_day_select_cbl(req: DaySelectCBLRequest = Body(..., example=DAY_SELECT_CBL_REQUEST_EXAMPLE)):
+def api_day_select_cbl(req: DaySelectCBLRequest = Body(..., examples={"default": DAY_SELECT_CBL_REQUEST_EXAMPLE})):
     return compute_day_select_cbl(
         customer_id=req.customer_id,
         event_start=req.event_start,
@@ -171,7 +171,7 @@ def api_day_select_cbl(req: DaySelectCBLRequest = Body(..., example=DAY_SELECT_C
         400: {"description": "請求錯誤"},
     },
 )
-def api_day_select_settlement(req: DaySelectMonthlySettlementRequest = Body(..., example=DAY_SELECT_SETTLEMENT_MONTHLY_REQUEST_EXAMPLE)):
+def api_day_select_settlement(req: DaySelectMonthlySettlementRequest = Body(..., examples={"default": DAY_SELECT_SETTLEMENT_MONTHLY_REQUEST_EXAMPLE})):
     return compute_day_select_settlement_monthly(
         customer_id=req.customer_id,
         contract_capacity_kw=req.contract_capacity_kw,
@@ -192,7 +192,7 @@ def api_day_select_settlement(req: DaySelectMonthlySettlementRequest = Body(...,
         400: {"description": "請求錯誤", "content": {"application/json": {"example": DAY_SELECT_REWARD_ERROR_EXAMPLE}}},
     },
 )
-def api_day_select_reduction(req: DaySelectReductionRequest = Body(..., example=DAY_SELECT_REDUCTION_REQUEST_EXAMPLE)):
+def api_day_select_reduction(req: DaySelectReductionRequest = Body(..., examples={"default": DAY_SELECT_REDUCTION_REQUEST_EXAMPLE})):
     return compute_day_select_reduction(
         customer_id=req.customer_id,
         event_start=req.event_start,
@@ -214,7 +214,7 @@ def api_day_select_reduction(req: DaySelectReductionRequest = Body(..., example=
         200: {"description": "取得需求時間窗（事件前，用於 CBL 計算）", "content": {"application/json": {"example": GUARANTEED_REQUIRED_RESPONSE_EXAMPLE}}},
     },
 )
-def api_guaranteed_required_records_pre(req: GuaranteedRequiredRequest = Body(..., example=GUARANTEED_REQUIRED_REQUEST_EXAMPLE_PRE)):
+def api_guaranteed_required_records_pre(req: GuaranteedRequiredRequest = Body(..., examples={"default": GUARANTEED_REQUIRED_REQUEST_EXAMPLE_PRE})):
     return build_guaranteed_required_windows(
         customer_id=req.customer_id,
         event_start=req.event_start,
@@ -233,7 +233,7 @@ def api_guaranteed_required_records_pre(req: GuaranteedRequiredRequest = Body(..
         200: {"description": "取得需求時間窗（事件後，用於 reward/reduction）", "content": {"application/json": {"example": GUARANTEED_REQUIRED_POST_RESPONSE_EXAMPLE}}},
     },
 )
-def api_guaranteed_required_records_reward(req: GuaranteedRequiredRequest = Body(..., example=GUARANTEED_REQUIRED_REQUEST_EXAMPLE_POST)):
+def api_guaranteed_required_records_reward(req: GuaranteedRequiredRequest = Body(..., examples={"default": GUARANTEED_REQUIRED_REQUEST_EXAMPLE_POST})):
     return build_guaranteed_required_windows_post(
         customer_id=req.customer_id,
         event_start=req.event_start,
@@ -252,7 +252,7 @@ def api_guaranteed_required_records_reward(req: GuaranteedRequiredRequest = Body
         200: {"description": "取得需求時間窗（事件後，用於 reward/reduction）", "content": {"application/json": {"example": GUARANTEED_REQUIRED_POST_RESPONSE_EXAMPLE}}},
     },
 )
-def api_guaranteed_required_records_reduction(req: GuaranteedRequiredRequest = Body(..., example=GUARANTEED_REQUIRED_REQUEST_EXAMPLE_POST)):
+def api_guaranteed_required_records_reduction(req: GuaranteedRequiredRequest = Body(..., examples={"default": GUARANTEED_REQUIRED_REQUEST_EXAMPLE_POST})):
     return build_guaranteed_required_windows_post(
         customer_id=req.customer_id,
         event_start=req.event_start,
@@ -271,7 +271,7 @@ def api_guaranteed_required_records_reduction(req: GuaranteedRequiredRequest = B
         400: {"description": "請求錯誤", "content": {"application/json": {"example": GUARANTEED_CBL_ERROR_EXAMPLE}}},
     },
 )
-def api_guaranteed_cbl(req: GuaranteedCBLRequest = Body(..., example=GUARANTEED_CBL_REQUEST_EXAMPLE)):
+def api_guaranteed_cbl(req: GuaranteedCBLRequest = Body(..., examples={"default": GUARANTEED_CBL_REQUEST_EXAMPLE})):
     return compute_guaranteed_cbl(
         customer_id=req.customer_id,
         event_start=req.event_start,
@@ -294,7 +294,7 @@ def api_guaranteed_cbl(req: GuaranteedCBLRequest = Body(..., example=GUARANTEED_
         400: {"description": "請求錯誤", "content": {"application/json": {"example": GUARANTEED_EVENT_ERROR_EXAMPLE}}},
     },
 )
-def api_guaranteed_reduction(req: GuaranteedEventRequest = Body(..., example=GUARANTEED_EVENT_REQUEST_EXAMPLE)):
+def api_guaranteed_reduction(req: GuaranteedEventRequest = Body(..., examples={"default": GUARANTEED_EVENT_REQUEST_EXAMPLE})):
     return compute_guaranteed_reduction_simple(
         customer_id=req.customer_id,
         event_start=req.event_start,
@@ -317,7 +317,7 @@ def api_guaranteed_reduction(req: GuaranteedEventRequest = Body(..., example=GUA
         400: {"description": "請求錯誤", "content": {"application/json": {"example": GUARANTEED_REWARD_ERROR_EXAMPLE}}},
     },
 )
-def api_guaranteed_reward(req: GuaranteedRewardRequest = Body(..., example=GUARANTEED_REWARD_REQUEST_EXAMPLE)):
+def api_guaranteed_reward(req: GuaranteedRewardRequest = Body(..., examples={"default": GUARANTEED_REWARD_REQUEST_EXAMPLE})):
     return compute_guaranteed_reward(
         customer_id=req.customer_id,
         notification_minutes_before=req.notification_minutes_before,
