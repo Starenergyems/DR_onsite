@@ -1,0 +1,9 @@
+1. 在事件日執行抑低之前，使用者會呼叫/dr/day-select/cbl/required-records，並提供抑低執行日以及其執行時段，而此呼叫會告知使用者需要提供的meter demand records為那些基準日(有20日)。
+2. 接著使用者會會根據required-records準備其基準日的資料，基本上會是整日的meter demand資料(15分鐘一筆，起始不含，結束含) x 20天。
+3. 再呼叫/dr/day-select/cbl ，這時此API應該要做到能夠挑選各整日需量資料中，挑出需要用的需求視窗進行後續計算，並回傳計算後的數值。
+4. 抑低執行日後，使用者會呼叫/dr/day-select/reduction/required-records，並提供抑低執行日以及其執行時段，而此呼叫會告知使用者需要提供的meter demand records為那些，應為基準日+執行日，皆為整日的資料。
+5. 接著使用者會會根據required-records準備其基準日+執行日的資料，基本上會是整日的meter demand資料(15分鐘一筆，起始不含，結束含) x 20基準日+執行日。
+6. 再呼叫/dr/day-select/reduction，這時此API應該要做到能夠挑選各整日需量資料中，挑出需要用的需求視窗進行後續計算，並回傳計算後的數值。包含但不限於: 執行率/減載比率，以及"計算回饋金"。
+7. 一整個月過去後，使用者會呼叫/dr/day-select/settlement/required-records，並提供那一個月中的抑低執行日以及其執行時段，而此呼叫會告知使用者需要提供的meter demand records為那些基準日(有20日)。
+8. 接著使用者會根據required-records準備其基準日+那一個月的執行日的資料，基本上會是整日的meter demand資料(15分鐘一筆，起始不含，結束含) x 20天基準日+那一個月的執行日。
+9. 再呼叫/dr/day-select/settlement，這時此API應該要做到能夠挑選各整日需量資料中，挑出需要用的需求視窗進行後續計算，並回傳計算後的數值。包含但不限於: CBL＋實際抑低＋執行率/減載比率＋費率），改為"月度"結算回饋金。

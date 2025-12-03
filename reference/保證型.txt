@@ -1,0 +1,9 @@
+1. 在約定日時，若當日台電發出調度通知(提前告知)，則使用者在執行抑低之前，會呼叫/dr/guaranteed/cbl/required-records，並提供抑低執行日以及其執行時段，而此呼叫會告知使用者需要提供的meter demand records為哪一個基準日(也就是執行日)。
+2. 接著使用者會根據required-records準備其基準日的資料，也就是執行日的meter demand資料(15分鐘一筆，起始不含，結束含)。
+3. 再呼叫/dr/guaranteed/cbl ，這時此API應該要做到能夠挑選當日需量資料中，挑出需要用的需求視窗進行後續計算，並回傳計算後的數值。
+4. 抑低執行日後，使用者會呼叫/dr/day-select/reduction/required-records，並提供抑低執行日以及其執行時段，而此呼叫會告知使用者需要提供的meter demand records的基準日，也就是執行日，其整日的資料。
+5. 接著使用者會根據required-records準備其基準日，也就是執行日的資料，基本上會是整日的meter demand資料(15分鐘一筆，起始不含，結束含)。
+6. 再呼叫/dr/guaranteed/reduction，這時此API應該要做到能夠挑選各整日需量資料中，挑出需要用的需求視窗進行後續計算，並回傳計算後的數值。包含但不限於: 執行率/減載比率，以及"計算回饋金"。
+7. 一整個月過去後，使用者會呼叫/dr/guaranteed/settlement/required-records，並提供那一個月中的抑低執行日以及其執行時段，而此呼叫會告知使用者需要提供的meter demand records為那些基準日，也就是執行日。
+8. 接著使用者會根據required-records準備其基準日，也就是執行日，的資料，基本上會是整日的meter demand資料(15分鐘一筆，起始不含，結束含)。
+9. 再呼叫/dr/guaranteed/settlement，這時此API應該要做到能夠挑選各整日需量資料中，挑出需要用的需求視窗進行後續計算，並回傳計算後的數值。包含但不限於: CBL＋實際抑低＋執行率/減載比率＋費率），改為"月度"結算回饋金。
