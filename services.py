@@ -25,6 +25,13 @@ from schemas import (
     GuaranteedRequiredPostResponse,
     SpinReserveCBLResponse,
     SpinReserveRequiredResponse,
+    SpinReserveReductionRequiredResponse,
+    SpinReserveReductionResponse,
+    SpinReserveSettlementRequiredResponse,
+    SpinReserveSettlementResponse,
+    SpinReserveEvent,
+    SpinReserveReductionRequest,
+    SpinReserveSettlementRequest,
     RequiredWindow,
 )
 
@@ -1007,14 +1014,19 @@ def compute_spin_reserve_cbl(
     event_start: datetime,
     event_end: datetime,
     records: List[MeterRecord],
-    contract_capacity_kw: float,
+    bid_capacity_kw: float,
     awarded_capacity_kw: float,
 ):
     event_start = to_taipei(event_start)
     event_end = to_taipei(event_end)
     if event_end <= event_start:
         raise HTTPException(400, "event_end 必須晚於 event_start")
-    _validate_guaranteed_capacity(contract_capacity_kw, awarded_capacity_kw)
+    if bid_capacity_kw <= 0:
+        raise HTTPException(400, "bid_capacity_kw 必須大於 0")
+    if awarded_capacity_kw <= 0:
+        raise HTTPException(400, "awarded_capacity_kw 必須大於 0")
+    if awarded_capacity_kw > bid_capacity_kw:
+        raise HTTPException(400, "awarded_capacity_kw 不可大於 bid_capacity_kw（投標標稱容量）")
 
     baseline_start = event_start - timedelta(minutes=5)
     baseline_end = event_start
@@ -1031,9 +1043,9 @@ def compute_spin_reserve_cbl(
         "baseline_end": baseline_end.isoformat(),
         "baseline_kw": baseline_kw,
         "awarded_capacity_kw": awarded_capacity_kw,
-        "contract_capacity_kw": contract_capacity_kw,
-        "window_minutes": 5,
-        "step_minutes": 1,
+        "bid_capacity_kw": bid_capacity_kw,
+        "window_seconds": 300,
+        "step_seconds": 60,
     }
 
     return SpinReserveCBLResponse(
@@ -1044,6 +1056,198 @@ def compute_spin_reserve_cbl(
         target_load_kw=target_load_kw,
         method="spin-reserve-cbl-v1",
         detail=detail,
+    )
+
+
+# -------------------------
+# 即時備轉：執行/結算
+# -------------------------
+def build_spin_reserve_reduction_required_windows(
+    customer_id: str,
+    event_start: datetime,
+    event_end: datetime,
+) -> SpinReserveReductionRequiredResponse:
+    event_start = to_taipei(event_start)
+    event_end = to_taipei(event_end)
+    if event_end <= event_start:
+        raise HTTPException(400, "event_end 必須晚於 event_start")
+    baseline_start = event_start - timedelta(minutes=5)
+    baseline_end = event_start
+    windows = [
+        RequiredWindow(label="baseline_5min", start=baseline_start, end=baseline_end, granularity_seconds=60),
+        RequiredWindow(label="event_window", start=event_start, end=event_end, optional=False, granularity_seconds=60),
+    ]
+    return SpinReserveReductionRequiredResponse(customer_id=customer_id, windows=windows)
+
+
+def _default_efficiency_price(level: int) -> float:
+    mapping = {1: 0.1, 2: 0.06, 3: 0.04}
+    return mapping.get(level, 0.0)
+
+
+def _default_energy_price() -> float:
+    """
+    預設電能邊際價格估值：
+    參考「電價及單位成本結構比較-114年10月底止.pdf」中 114 年 1-10 月每度售電成本約 3.62 元，
+    並加上約 8% 溢價，作為日前邊際價的簡化估值。
+    """
+    base_cost = 3.62
+    premium = 1.08
+    return round(base_cost * premium, 2)
+
+
+def compute_spin_reserve_reduction(
+    customer_id: str,
+    event_start: datetime,
+    event_end: datetime,
+    records: List[MeterRecord],
+    awarded_capacity_kw: float,
+    efficiency_level: int,
+    is_dispatched: bool,
+    capacity_price_per_kw: Optional[float] = None,
+    energy_price_per_kwh: Optional[float] = None,
+):
+    event_start = to_taipei(event_start)
+    event_end = to_taipei(event_end)
+    if event_end <= event_start:
+        raise HTTPException(400, "event_end 必須晚於 event_start")
+    if efficiency_level not in (1, 2, 3):
+        raise HTTPException(400, "efficiency_level 需為 1、2 或 3")
+
+    baseline_start = event_start - timedelta(minutes=5)
+    baseline_end = event_start
+
+    customer_records = validate_customer_records_step(records, customer_id, step_minutes=1)
+    _ensure_full_window_step(customer_records, baseline_start, baseline_end, "調度前 5 分鐘", step_minutes=1)
+    _ensure_full_window_step(customer_records, event_start, event_end, "事件時段", step_minutes=1)
+
+    baseline_records = filter_records_between(customer_records, baseline_start, baseline_end)
+    baseline_kw = average_kw(baseline_records) or 0.0
+    actual_records = filter_records_between(customer_records, event_start, event_end)
+    actual_avg_kw = average_kw(actual_records) or 0.0
+
+    actual_reduction_kw = max(baseline_kw - actual_avg_kw, 0.0)
+    duration_hours = (event_end - event_start).total_seconds() / 3600.0
+    if awarded_capacity_kw <= 0:
+        raise HTTPException(400, "awarded_capacity_kw 必須大於 0")
+    standby_rate = min(baseline_kw / awarded_capacity_kw, 1.0) if awarded_capacity_kw else 0.0
+    if is_dispatched:
+        execution_rate = min(actual_reduction_kw / awarded_capacity_kw, 1.0) if awarded_capacity_kw else 0.0
+        if execution_rate >= 0.95:
+            service_quality_index = 1.0
+        elif execution_rate >= 0.85:
+            service_quality_index = 0.7
+        elif execution_rate >= 0.7:
+            service_quality_index = 0.0
+        else:
+            service_quality_index = -1.0
+    else:
+        execution_rate = 0.0
+        if standby_rate >= 0.95:
+            service_quality_index = 1.0
+        elif standby_rate >= 0.85:
+            service_quality_index = 0.7
+        elif standby_rate >= 0.7:
+            service_quality_index = 0.0
+        else:
+            service_quality_index = -1.0
+
+    cap_price = capacity_price_per_kw or 0.0
+    eff_price = _default_efficiency_price(efficiency_level)
+    energy_price = energy_price_per_kwh if energy_price_per_kwh is not None else _default_energy_price()
+
+    capacity_fee = awarded_capacity_kw * cap_price * duration_hours
+    efficiency_fee = awarded_capacity_kw * eff_price * duration_hours
+    energy_fee = 0.0 if not is_dispatched else actual_reduction_kw * duration_hours * energy_price
+
+    total_fee = capacity_fee + efficiency_fee * service_quality_index + energy_fee
+
+    detail = {
+        "baseline_start": baseline_start.isoformat(),
+        "baseline_end": baseline_end.isoformat(),
+        "baseline_kw": baseline_kw,
+        "actual_avg_kw": actual_avg_kw,
+        "actual_reduction_kw": actual_reduction_kw,
+        "duration_hours": duration_hours,
+        "execution_rate": execution_rate,
+        "standby_rate": standby_rate,
+        "service_quality_index": service_quality_index,
+        "awarded_capacity_kw": awarded_capacity_kw,
+        "efficiency_level": efficiency_level,
+        "capacity_price_per_kw": cap_price,
+        "efficiency_price_per_kw": eff_price,
+        "energy_price_per_kwh": energy_price,
+        "energy_price_source": "user_input" if energy_price_per_kwh is not None else "default_pdf_estimate",
+        "is_dispatched": is_dispatched,
+    }
+
+    return SpinReserveReductionResponse(
+        customer_id=customer_id,
+        event_start=event_start,
+        event_end=event_end,
+        baseline_kw=baseline_kw,
+        actual_avg_kw=actual_avg_kw,
+        actual_reduction_kw=actual_reduction_kw,
+        execution_rate=execution_rate,
+        standby_rate=standby_rate,
+        service_quality_index=service_quality_index,
+        capacity_fee=capacity_fee,
+        efficiency_fee=efficiency_fee,
+        energy_fee=energy_fee,
+        total_fee=total_fee,
+        method="spin-reserve-reduction-v1",
+        detail=detail,
+    )
+
+
+def build_spin_reserve_settlement_required(
+    customer_id: str,
+    events: List[SpinReserveEvent],
+) -> SpinReserveSettlementRequiredResponse:
+    if not events:
+        raise HTTPException(400, "events 不可為空")
+    windows: List[RequiredWindow] = []
+    for ev in events:
+        ev_start = to_taipei(ev.event_start)
+        ev_end = to_taipei(ev.event_end)
+        if ev_end <= ev_start:
+            raise HTTPException(400, "event_end 必須晚於 event_start")
+        baseline_start = ev_start - timedelta(minutes=5)
+        baseline_end = ev_start
+        windows.append(RequiredWindow(label="baseline_5min", start=baseline_start, end=baseline_end, granularity_seconds=60))
+        windows.append(RequiredWindow(label="event_window", start=ev_start, end=ev_end, optional=False, granularity_seconds=60))
+    return SpinReserveSettlementRequiredResponse(customer_id=customer_id, windows=windows)
+
+
+def compute_spin_reserve_settlement(
+    customer_id: str,
+    events: List[SpinReserveEvent],
+    records: List[MeterRecord],
+) -> SpinReserveSettlementResponse:
+    if not events:
+        raise HTTPException(400, "events 不可為空")
+    results: List[SpinReserveReductionResponse] = []
+    total_fee = 0.0
+    for ev in events:
+        res = compute_spin_reserve_reduction(
+            customer_id=customer_id,
+            event_start=ev.event_start,
+            event_end=ev.event_end,
+            records=records,
+            awarded_capacity_kw=ev.awarded_capacity_kw,
+            efficiency_level=ev.efficiency_level,
+            is_dispatched=ev.is_dispatched,
+            capacity_price_per_kw=ev.capacity_price_per_kw,
+            energy_price_per_kwh=ev.energy_price_per_kwh,
+        )
+        total_fee += res.total_fee
+        results.append(res)
+
+    return SpinReserveSettlementResponse(
+        customer_id=customer_id,
+        total_fee=total_fee,
+        events=results,
+        method="spin-reserve-settlement-v1",
     )
 
 

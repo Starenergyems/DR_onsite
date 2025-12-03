@@ -27,6 +27,14 @@ from schemas import (
     SpinReserveCBLResponse,
     SpinReserveRequiredRequest,
     SpinReserveRequiredResponse,
+    SpinReserveReductionRequiredRequest,
+    SpinReserveReductionRequiredResponse,
+    SpinReserveReductionRequest,
+    SpinReserveReductionResponse,
+    SpinReserveSettlementRequiredRequest,
+    SpinReserveSettlementRequiredResponse,
+    SpinReserveSettlementRequest,
+    SpinReserveSettlementResponse,
 )
 from services import (
     compute_day_select_cbl,
@@ -45,6 +53,10 @@ from services import (
     build_guaranteed_settlement_required,
     compute_spin_reserve_cbl,
     build_spin_reserve_required_windows,
+    build_spin_reserve_reduction_required_windows,
+    build_spin_reserve_settlement_required,
+    compute_spin_reserve_reduction,
+    compute_spin_reserve_settlement,
 )
 from swagger_examples import (
     DAY_SELECT_CBL_ERROR_EXAMPLE,
@@ -79,6 +91,14 @@ from swagger_examples import (
     SPIN_RESERVE_CBL_REQUEST_EXAMPLE,
     SPIN_RESERVE_REQUIRED_REQUEST_EXAMPLE,
     SPIN_RESERVE_REQUIRED_RESPONSE_EXAMPLE,
+    SPIN_RESERVE_REDUCTION_REQUIRED_RESPONSE_EXAMPLE,
+    SPIN_RESERVE_REDUCTION_REQUEST_EXAMPLE,
+    SPIN_RESERVE_REDUCTION_RESPONSE_EXAMPLE,
+    SPIN_RESERVE_REDUCTION_REQUIRED_REQUEST_EXAMPLE,
+    SPIN_RESERVE_SETTLEMENT_REQUIRED_RESPONSE_EXAMPLE,
+    SPIN_RESERVE_SETTLEMENT_REQUIRED_REQUEST_EXAMPLE,
+    SPIN_RESERVE_SETTLEMENT_REQUEST_EXAMPLE,
+    SPIN_RESERVE_SETTLEMENT_RESPONSE_EXAMPLE,
 )
 
 app = FastAPI(
@@ -397,6 +417,85 @@ def api_spin_reserve_cbl(req: SpinReserveCBLRequest = Body(..., examples={"defau
         event_start=req.event_start,
         event_end=req.event_end,
         records=req.records,
-        contract_capacity_kw=req.contract_capacity_kw,
+        bid_capacity_kw=req.bid_capacity_kw,
         awarded_capacity_kw=req.awarded_capacity_kw,
+    )
+
+
+@app.post(
+    "/dr/spin-reserve/reduction/required-records",
+    response_model=SpinReserveReductionRequiredResponse,
+    tags=["Spin Reserve: Reduction"],
+    responses={
+        200: {
+            "description": "取得需求時間窗（事件後，用於即時備轉抑低與結算；含調度前 5 分鐘與事件時段）",
+            "content": {"application/json": {"example": SPIN_RESERVE_REDUCTION_REQUIRED_RESPONSE_EXAMPLE}},
+        },
+    },
+)
+def api_spin_reserve_reduction_required_records(req: SpinReserveReductionRequiredRequest = Body(..., examples={"default": SPIN_RESERVE_REDUCTION_REQUIRED_REQUEST_EXAMPLE})):
+    return build_spin_reserve_reduction_required_windows(
+        customer_id=req.customer_id,
+        event_start=req.event_start,
+        event_end=req.event_end,
+    )
+
+
+@app.post(
+    "/dr/spin-reserve/reduction",
+    response_model=SpinReserveReductionResponse,
+    description="計算即時備轉單次事件的基準需量、實際抑低、執行率/服務品質與日結算金。建議先呼叫 /reduction/required-records 取得需求時間窗。",
+    tags=["Spin Reserve: Reduction"],
+    responses={
+        200: {"description": "計算成功", "content": {"application/json": {"example": SPIN_RESERVE_REDUCTION_RESPONSE_EXAMPLE}}},
+        400: {"description": "請求錯誤"},
+    },
+)
+def api_spin_reserve_reduction(req: SpinReserveReductionRequest = Body(..., examples={"default": SPIN_RESERVE_REDUCTION_REQUEST_EXAMPLE})):
+    return compute_spin_reserve_reduction(
+        customer_id=req.customer_id,
+        event_start=req.event_start,
+        event_end=req.event_end,
+        records=req.records,
+        awarded_capacity_kw=req.awarded_capacity_kw,
+        efficiency_level=req.efficiency_level,
+        is_dispatched=req.is_dispatched,
+        capacity_price_per_kw=req.capacity_price_per_kw,
+        energy_price_per_kwh=req.energy_price_per_kwh,
+    )
+
+
+@app.post(
+    "/dr/spin-reserve/settlement/required-records",
+    response_model=SpinReserveSettlementRequiredResponse,
+    tags=["Spin Reserve: Settlement"],
+    responses={
+        200: {
+            "description": "取得需求時間窗（事件後，用於月度結算；含各得標日調度前 5 分鐘與事件時段）",
+            "content": {"application/json": {"example": SPIN_RESERVE_SETTLEMENT_REQUIRED_RESPONSE_EXAMPLE}},
+        },
+    },
+)
+def api_spin_reserve_settlement_required_records(req: SpinReserveSettlementRequiredRequest = Body(..., examples={"default": SPIN_RESERVE_SETTLEMENT_REQUIRED_REQUEST_EXAMPLE})):
+    return build_spin_reserve_settlement_required(
+        customer_id=req.customer_id,
+        events=req.events,
+    )
+
+
+@app.post(
+    "/dr/spin-reserve/settlement",
+    response_model=SpinReserveSettlementResponse,
+    description="即時備轉月度結算：累計多事件的日結算金，包含容量費、效能費（乘服務品質指標）、電能費總和。",
+    tags=["Spin Reserve: Settlement"],
+    responses={
+        200: {"description": "計算成功", "content": {"application/json": {"example": SPIN_RESERVE_SETTLEMENT_RESPONSE_EXAMPLE}}},
+        400: {"description": "請求錯誤"},
+    },
+)
+def api_spin_reserve_settlement(req: SpinReserveSettlementRequest = Body(..., examples={"default": SPIN_RESERVE_SETTLEMENT_REQUEST_EXAMPLE})):
+    return compute_spin_reserve_settlement(
+        customer_id=req.customer_id,
+        events=req.events,
+        records=req.records,
     )

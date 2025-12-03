@@ -262,7 +262,7 @@ class SpinReserveCBLRequest(BaseModel):
     event_start: datetime
     event_end: datetime
     records: List[MeterRecord]
-    contract_capacity_kw: float = Field(..., gt=0, description="經常契約容量 (瓩)")
+    bid_capacity_kw: float = Field(..., gt=0, description="投標標稱容量 (瓩)")
     awarded_capacity_kw: float = Field(..., gt=0, description="得標容量 (瓩)")
 
 
@@ -274,6 +274,80 @@ class SpinReserveCBLResponse(BaseModel):
     target_load_kw: float
     method: str
     detail: Dict[str, Any]
+
+
+class SpinReserveReductionRequiredRequest(BaseModel):
+    customer_id: str
+    event_start: datetime
+    event_end: datetime
+
+
+class SpinReserveReductionRequiredResponse(BaseModel):
+    customer_id: str
+    windows: List[RequiredWindow]
+
+
+class SpinReserveReductionRequest(BaseModel):
+    customer_id: str
+    event_start: datetime
+    event_end: datetime
+    records: List[MeterRecord]
+    awarded_capacity_kw: float = Field(..., gt=0, description="得標容量 (瓩)")
+    efficiency_level: int = Field(..., ge=1, le=3, description="效能級數 1/2/3（對應 1/3/5 分鐘）")
+    is_dispatched: bool = Field(True, description="是否接獲調度指令；未接獲則視為待命，不計電能費")
+    capacity_price_per_kw: Optional[float] = Field(None, description="容量費單價，元/瓩·小時（可省略）")
+    energy_price_per_kwh: Optional[float] = Field(None, description="電能邊際價格，元/度（可省略，若未填以估算值）")
+
+
+class SpinReserveReductionResponse(BaseModel):
+    customer_id: str
+    event_start: datetime
+    event_end: datetime
+    baseline_kw: float
+    actual_avg_kw: float
+    actual_reduction_kw: float
+    execution_rate: float
+    standby_rate: float
+    service_quality_index: float
+    capacity_fee: float
+    efficiency_fee: float
+    energy_fee: float
+    total_fee: float
+    method: str
+    detail: Dict[str, Any]
+
+
+class SpinReserveEvent(BaseModel):
+    event_start: datetime
+    event_end: datetime
+    awarded_capacity_kw: float
+    efficiency_level: int = Field(..., ge=1, le=3)
+    is_dispatched: bool = Field(True, description="是否接獲調度指令；未接獲則視為待命，不計電能費")
+    capacity_price_per_kw: Optional[float] = None
+    energy_price_per_kwh: Optional[float] = None
+
+
+class SpinReserveSettlementRequiredRequest(BaseModel):
+    customer_id: str
+    events: List[SpinReserveEvent]
+
+
+class SpinReserveSettlementRequiredResponse(BaseModel):
+    customer_id: str
+    windows: List[RequiredWindow]
+
+
+class SpinReserveSettlementRequest(BaseModel):
+    customer_id: str
+    events: List[SpinReserveEvent]
+    records: List[MeterRecord]
+
+
+class SpinReserveSettlementResponse(BaseModel):
+    customer_id: str
+    total_fee: float
+    events: List[SpinReserveReductionResponse]
+    method: str
 
 
 class DaySelectRequiredRequest(BaseModel):

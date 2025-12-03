@@ -18,6 +18,10 @@ from schemas import (
     GuaranteedSettlementRequiredRequest,
     SpinReserveCBLRequest,
     SpinReserveRequiredRequest,
+    SpinReserveReductionRequiredRequest,
+    SpinReserveReductionRequest,
+    SpinReserveSettlementRequiredRequest,
+    SpinReserveSettlementRequest,
 )
 from services import (
     compute_day_select_cbl,
@@ -34,6 +38,10 @@ from services import (
     build_guaranteed_settlement_required,
     compute_spin_reserve_cbl,
     build_spin_reserve_required_windows,
+    build_spin_reserve_reduction_required_windows,
+    build_spin_reserve_settlement_required,
+    compute_spin_reserve_reduction,
+    compute_spin_reserve_settlement,
 )
 
 SAMPLES_DIR = Path(__file__).parent / "samples"
@@ -120,7 +128,7 @@ SPIN_RESERVE_REQUIRED_REQUEST_EXAMPLE = {
 }
 SPIN_RESERVE_CBL_REQUEST_EXAMPLE = {
     **SPIN_RESERVE_REQUIRED_REQUEST_EXAMPLE,
-    "contract_capacity_kw": 1500.0,
+    "bid_capacity_kw": 1500.0,
     "awarded_capacity_kw": 1200.0,
     "records": [
         {"customer_id": "SR001", "timestamp": "2025-07-01T13:56:00+08:00", "kw": 1500.0},
@@ -131,6 +139,50 @@ SPIN_RESERVE_CBL_REQUEST_EXAMPLE = {
         {"customer_id": "SR001", "timestamp": "2025-07-01T14:01:00+08:00", "kw": 900.0},
         {"customer_id": "SR001", "timestamp": "2025-07-01T14:02:00+08:00", "kw": 880.0},
     ],
+}
+
+SPIN_RESERVE_REDUCTION_REQUIRED_REQUEST_EXAMPLE = {
+    "customer_id": "SR001",
+    "event_start": "2025-07-01T14:00:00+08:00",
+    "event_end": "2025-07-01T15:00:00+08:00",
+}
+
+SPIN_RESERVE_REDUCTION_REQUEST_EXAMPLE = {
+    **SPIN_RESERVE_REDUCTION_REQUIRED_REQUEST_EXAMPLE,
+    "awarded_capacity_kw": 1200.0,
+    "efficiency_level": 1,
+    "is_dispatched": True,
+    "capacity_price_per_kw": 0.0,
+    "energy_price_per_kwh": 4.0,
+    "records": SPIN_RESERVE_CBL_REQUEST_EXAMPLE["records"],
+}
+
+SPIN_RESERVE_SETTLEMENT_REQUIRED_REQUEST_EXAMPLE = {
+    "customer_id": "SR001",
+    "events": [
+        {
+            "event_start": "2025-07-01T14:00:00+08:00",
+            "event_end": "2025-07-01T15:00:00+08:00",
+            "awarded_capacity_kw": 1200.0,
+            "efficiency_level": 1,
+        }
+    ],
+}
+
+SPIN_RESERVE_SETTLEMENT_REQUEST_EXAMPLE = {
+    "customer_id": "SR001",
+    "events": [
+        {
+            "event_start": "2025-07-01T14:00:00+08:00",
+            "event_end": "2025-07-01T15:00:00+08:00",
+            "awarded_capacity_kw": 1200.0,
+            "efficiency_level": 1,
+            "is_dispatched": True,
+            "capacity_price_per_kw": 0.0,
+            "energy_price_per_kwh": 4.0,
+        }
+    ],
+    "records": SPIN_RESERVE_CBL_REQUEST_EXAMPLE["records"],
 }
 
 
@@ -429,8 +481,53 @@ def _build_spin_reserve_cbl_response():
         event_start=req.event_start,
         event_end=req.event_end,
         records=req.records,
-        contract_capacity_kw=req.contract_capacity_kw,
+        bid_capacity_kw=req.bid_capacity_kw,
         awarded_capacity_kw=req.awarded_capacity_kw,
+    )
+    return resp.model_dump()
+
+
+def _build_spin_reserve_reduction_required_response():
+    req = SpinReserveReductionRequiredRequest.model_validate(SPIN_RESERVE_REDUCTION_REQUIRED_REQUEST_EXAMPLE)
+    resp = build_spin_reserve_reduction_required_windows(
+        customer_id=req.customer_id,
+        event_start=req.event_start,
+        event_end=req.event_end,
+    )
+    return resp.model_dump()
+
+
+def _build_spin_reserve_reduction_response():
+    req = SpinReserveReductionRequest.model_validate(SPIN_RESERVE_REDUCTION_REQUEST_EXAMPLE)
+    resp = compute_spin_reserve_reduction(
+        customer_id=req.customer_id,
+        event_start=req.event_start,
+        event_end=req.event_end,
+        records=req.records,
+        awarded_capacity_kw=req.awarded_capacity_kw,
+        efficiency_level=req.efficiency_level,
+        is_dispatched=req.is_dispatched,
+        capacity_price_per_kw=req.capacity_price_per_kw,
+        energy_price_per_kwh=req.energy_price_per_kwh,
+    )
+    return resp.model_dump()
+
+
+def _build_spin_reserve_settlement_required_response():
+    req = SpinReserveSettlementRequiredRequest.model_validate(SPIN_RESERVE_SETTLEMENT_REQUIRED_REQUEST_EXAMPLE)
+    resp = build_spin_reserve_settlement_required(
+        customer_id=req.customer_id,
+        events=req.events,
+    )
+    return resp.model_dump()
+
+
+def _build_spin_reserve_settlement_response():
+    req = SpinReserveSettlementRequest.model_validate(SPIN_RESERVE_SETTLEMENT_REQUEST_EXAMPLE)
+    resp = compute_spin_reserve_settlement(
+        customer_id=req.customer_id,
+        events=req.events,
+        records=req.records,
     )
     return resp.model_dump()
 
@@ -456,3 +553,7 @@ GUARANTEED_REQUIRED_POST_RESPONSE_EXAMPLE = _build_or_error(_build_guaranteed_re
 GUARANTEED_SETTLEMENT_REQUIRED_RESPONSE_EXAMPLE = _build_or_error(_build_guaranteed_settlement_required_response)
 SPIN_RESERVE_REQUIRED_RESPONSE_EXAMPLE = _build_or_error(_build_spin_reserve_required_response)
 SPIN_RESERVE_CBL_RESPONSE_EXAMPLE = _build_or_error(_build_spin_reserve_cbl_response)
+SPIN_RESERVE_REDUCTION_REQUIRED_RESPONSE_EXAMPLE = _build_or_error(_build_spin_reserve_reduction_required_response)
+SPIN_RESERVE_REDUCTION_RESPONSE_EXAMPLE = _build_or_error(_build_spin_reserve_reduction_response)
+SPIN_RESERVE_SETTLEMENT_REQUIRED_RESPONSE_EXAMPLE = _build_or_error(_build_spin_reserve_settlement_required_response)
+SPIN_RESERVE_SETTLEMENT_RESPONSE_EXAMPLE = _build_or_error(_build_spin_reserve_settlement_response)
