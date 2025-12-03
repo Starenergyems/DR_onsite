@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime, date, time
 from typing import List, Dict, Optional, Any
 
 from pydantic import BaseModel, Field
@@ -348,6 +348,57 @@ class SpinReserveSettlementResponse(BaseModel):
     total_fee: float
     events: List[SpinReserveReductionResponse]
     method: str
+
+
+# -------------------------
+# Sample data generators
+# -------------------------
+class SampleDaySelectRequest(BaseModel):
+    customer_id: str = "C001"
+    sample_date: date = Field(default_factory=lambda: date(2099, 1, 2), description="事件日期")
+    event_start: time = Field(default=time(16, 0), description="事件開始時間（當日）")
+    event_end: time = Field(default=time(20, 0), description="事件結束時間（當日）")
+    base_kw: float = 1500.0
+    event_kw: float = 500.0
+    af_kw: Optional[float] = Field(None, description="22:00-24:00 平均需量，預設同 base_kw")
+    batch_time_tariff: bool = False
+    dr_periods: List[DRPeriod] = Field(default_factory=lambda: [DRPeriod(start="2099-01", end="2099-12")])
+    contract_capacity_kw: float = 120.0
+    committed_capacity_kw: float = 80.0
+    baseline_days: int = 5
+    assumed_af_kw: Optional[float] = None
+
+
+class SampleGuaranteedRequest(BaseModel):
+    customer_id: str = "G001"
+    sample_date: date = Field(default_factory=lambda: date(2099, 1, 10), description="事件日期")
+    event_start: time = Field(default=time(16, 0), description="事件開始時間（當日）")
+    event_end: time = Field(default=time(18, 0), description="事件結束時間（當日）")
+    base_kw: float = 1500.0
+    event_kw: float = 500.0
+    notification_minutes_before: int = Field(60, description="30/60/120")
+    contract_capacity_kw: float = 2000.0
+    committed_capacity_kw: float = 1200.0
+
+
+class SampleSpinReserveRequest(BaseModel):
+    customer_id: str = "SR001"
+    event_start: datetime = Field(default_factory=lambda: datetime(2099, 1, 3, 14, 0))
+    event_end: datetime = Field(default_factory=lambda: datetime(2099, 1, 3, 15, 0))
+    base_kw: float = 1500.0
+    event_kw: float = 900.0
+    buffer_before_minutes: int = 10
+    buffer_after_minutes: int = 5
+    awarded_capacity_kw: float = 1200.0
+    bid_capacity_kw: float = 1500.0
+    efficiency_level: int = 1
+    is_dispatched: bool = True
+    capacity_price_per_kw: float = 0.0
+    energy_price_per_kwh: Optional[float] = None
+
+
+class SampleRecordsResponse(BaseModel):
+    records: List[MeterRecord]
 
 
 class DaySelectRequiredRequest(BaseModel):

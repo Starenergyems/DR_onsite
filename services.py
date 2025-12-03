@@ -33,6 +33,10 @@ from schemas import (
     SpinReserveReductionRequest,
     SpinReserveSettlementRequest,
     RequiredWindow,
+    SampleDaySelectRequest,
+    SampleGuaranteedRequest,
+    SampleSpinReserveRequest,
+    SampleRecordsResponse,
 )
 
 # -------------------------
@@ -1249,6 +1253,66 @@ def compute_spin_reserve_settlement(
         events=results,
         method="spin-reserve-settlement-v1",
     )
+
+
+# -------------------------
+# Samples generators
+# -------------------------
+def generate_day_select_samples(req: SampleDaySelectRequest) -> SampleRecordsResponse:
+    records: List[MeterRecord] = []
+    day = req.sample_date
+    event_start_dt = to_taipei(datetime.combine(day, req.event_start))
+    event_end_dt = to_taipei(datetime.combine(day, req.event_end))
+    af_kw = req.af_kw if req.af_kw is not None else req.base_kw
+    af_start = time(22, 0)
+    af_end = time(0, 0)
+
+    def _gen_one_day(target_day: date, use_event_window: bool):
+        cursor = to_taipei(datetime.combine(target_day, time(0, 0)))
+        end_of_day = to_taipei(datetime.combine(target_day, time(23, 45)))
+        while cursor <= end_of_day:
+            kw = req.base_kw
+            if use_event_window and event_start_dt < cursor <= event_end_dt:
+                kw = req.event_kw
+            elif cursor.time() >= af_start or cursor.time() == time(0, 0):
+                kw = af_kw
+            records.append(MeterRecord(customer_id=req.customer_id, timestamp=cursor, kw=kw))
+            cursor += timedelta(minutes=15)
+
+    # 基準日
+    for i in range(1, req.baseline_days + 1):
+        _gen_one_day(day - timedelta(days=i), use_event_window=False)
+    # 事件日
+    _gen_one_day(day, use_event_window=True)
+
+    return SampleRecordsResponse(records=records)
+
+
+def generate_guaranteed_samples(req: SampleGuaranteedRequest) -> SampleRecordsResponse:
+    records: List[MeterRecord] = []
+    day = req.sample_date
+    event_start_dt = to_taipei(datetime.combine(day, req.event_start))
+    event_end_dt = to_taipei(datetime.combine(day, req.event_end))
+    cursor = to_taipei(datetime.combine(day, time(0, 0)))
+    end_of_day = to_taipei(datetime.combine(day, time(23, 45)))
+    while cursor <= end_of_day:
+        kw = req.event_kw if event_start_dt < cursor <= event_end_dt else req.base_kw
+        records.append(MeterRecord(customer_id=req.customer_id, timestamp=cursor, kw=kw))
+        cursor += timedelta(minutes=15)
+    return SampleRecordsResponse(records=records)
+
+
+def generate_spin_reserve_samples(req: SampleSpinReserveRequest) -> SampleRecordsResponse:
+    records: List[MeterRecord] = []
+    event_start = to_taipei(req.event_start)
+    event_end = to_taipei(req.event_end)
+    cursor = event_start - timedelta(minutes=req.buffer_before_minutes)
+    end_cursor = event_end + timedelta(minutes=req.buffer_after_minutes)
+    while cursor <= end_cursor:
+        kw = req.event_kw if req.is_dispatched and event_start < cursor <= event_end else req.base_kw
+        records.append(MeterRecord(customer_id=req.customer_id, timestamp=cursor, kw=kw))
+        cursor += timedelta(minutes=1)
+    return SampleRecordsResponse(records=records)
 
 
 def build_day_select_required_windows(

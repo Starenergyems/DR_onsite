@@ -35,6 +35,10 @@ from schemas import (
     SpinReserveSettlementRequiredResponse,
     SpinReserveSettlementRequest,
     SpinReserveSettlementResponse,
+    SampleDaySelectRequest,
+    SampleGuaranteedRequest,
+    SampleSpinReserveRequest,
+    SampleRecordsResponse,
 )
 from services import (
     compute_day_select_cbl,
@@ -57,6 +61,9 @@ from services import (
     build_spin_reserve_settlement_required,
     compute_spin_reserve_reduction,
     compute_spin_reserve_settlement,
+    generate_day_select_samples,
+    generate_guaranteed_samples,
+    generate_spin_reserve_samples,
 )
 from swagger_examples import (
     DAY_SELECT_CBL_ERROR_EXAMPLE,
@@ -499,3 +506,36 @@ def api_spin_reserve_settlement(req: SpinReserveSettlementRequest = Body(..., ex
         events=req.events,
         records=req.records,
     )
+
+
+# -------------------------
+# Samples endpoints
+# -------------------------
+@app.post(
+    "/dr/day-select/sample-records",
+    response_model=SampleRecordsResponse,
+    tags=["Samples"],
+    summary="產生日選型 15 分鐘模擬資料",
+)
+def api_sample_day_select_records(req: SampleDaySelectRequest):
+    return generate_day_select_samples(req)
+
+
+@app.post(
+    "/dr/guaranteed/sample-records",
+    response_model=SampleRecordsResponse,
+    tags=["Samples"],
+    summary="產生保證型 15 分鐘模擬資料",
+)
+def api_sample_guaranteed_records(req: SampleGuaranteedRequest):
+    return generate_guaranteed_samples(req)
+
+
+@app.post(
+    "/dr/spin-reserve/sample-records",
+    response_model=SampleRecordsResponse,
+    tags=["Samples"],
+    summary="產生即時備轉 1 分鐘模擬資料（含前後緩衝）",
+)
+def api_sample_spin_reserve_records(req: SampleSpinReserveRequest):
+    return generate_spin_reserve_samples(req)
