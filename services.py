@@ -997,8 +997,7 @@ def build_spin_reserve_required_windows(
     baseline_start = event_start - timedelta(minutes=5)
     baseline_end = event_start
     windows = [
-        RequiredWindow(label="baseline_5min", start=baseline_start, end=baseline_end),
-        RequiredWindow(label="event_window", start=event_start, end=event_end, optional=True),
+        RequiredWindow(label="baseline_5min", start=baseline_start, end=baseline_end, granularity_seconds=60)
     ]
     return SpinReserveRequiredResponse(customer_id=customer_id, windows=windows)
 
@@ -1083,8 +1082,8 @@ def build_day_select_required_windows(
 
     required_days: List[RequiredDay] = []
     for d in baseline_days:
-        required_days.append(RequiredDay(date=d, role="baseline"))
-    required_days.append(RequiredDay(date=event_date, role="event"))
+        required_days.append(RequiredDay(date=d, role="baseline", granularity_seconds=900))
+    required_days.append(RequiredDay(date=event_date, role="event", granularity_seconds=900))
 
     return DaySelectRequiredPreResponse(
         customer_id=customer_id,
@@ -1164,7 +1163,7 @@ def build_guaranteed_settlement_required(
         _validate_guaranteed_event_window(ev_start, ev_end)
         if not is_in_dr_period(ev_start.date(), dr_period_ranges):
             raise HTTPException(400, "事件日期未落在合約約定的抑低期間")
-        required_days.append(RequiredDay(date=ev_start.date(), role="event"))
+        required_days.append(RequiredDay(date=ev_start.date(), role="event", granularity_seconds=900))
     # 去重
     seen = set()
     unique: List[RequiredDay] = []
@@ -1196,7 +1195,7 @@ def build_guaranteed_required_windows(
     dr_period_ranges = parse_dr_periods(dr_periods)
     if not is_in_dr_period(event_start.date(), dr_period_ranges):
         raise HTTPException(400, "事件日期未落在合約約定的抑低期間")
-    required_days = [RequiredDay(date=event_start.date(), role="event")]
+    required_days = [RequiredDay(date=event_start.date(), role="event", granularity_seconds=900)]
     return GuaranteedRequiredPreResponse(customer_id=customer_id, required_days=required_days)
 
 
@@ -1219,5 +1218,5 @@ def build_guaranteed_required_windows_post(
     dr_period_ranges = parse_dr_periods(dr_periods)
     if not is_in_dr_period(event_start.date(), dr_period_ranges):
         raise HTTPException(400, "事件日期未落在合約約定的抑低期間")
-    required_days = [RequiredDay(date=event_start.date(), role="event")]
+    required_days = [RequiredDay(date=event_start.date(), role="event", granularity_seconds=900)]
     return GuaranteedRequiredPostResponse(customer_id=customer_id, required_days=required_days)

@@ -51,9 +51,12 @@ def test_spin_reserve_cbl_flow(client):
     required_data = resp.json()
     logger.info("RESP /dr/spin-reserve/cbl/required-records: %s", required_data)
     assert required_data["windows"], "expected windows payload"
-    baseline_window = next(w for w in required_data["windows"] if w["label"] == "baseline_5min")
+    assert len(required_data["windows"]) == 1
+    baseline_window = required_data["windows"][0]
+    assert baseline_window["label"] == "baseline_5min"
     assert baseline_window["start"].endswith("13:55:00+08:00")
     assert baseline_window["end"].endswith("14:00:00+08:00")
+    assert baseline_window.get("granularity_seconds") == 60
 
     records_payload = _generate_minute_records(
         start_dt=event_start - timedelta(minutes=10),

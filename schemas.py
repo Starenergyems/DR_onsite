@@ -243,6 +243,7 @@ class RequiredWindow(BaseModel):
     start: datetime
     end: datetime
     optional: bool = False
+    granularity_seconds: Optional[int] = Field(None, description="期望的資料間隔（秒），未設定則依各模組預設")
 
 
 class SpinReserveRequiredRequest(BaseModel):
@@ -294,6 +295,7 @@ class DaySelectSettlementRequiredRequest(BaseModel):
 class RequiredDay(BaseModel):
     date: date
     role: str  # "baseline" or "event"
+    granularity_seconds: Optional[int] = Field(None, description="建議的資料間隔（秒），未指定則依預設")
 
 
 class DaySelectRequiredResponse(BaseModel):

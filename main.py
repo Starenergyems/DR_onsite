@@ -88,7 +88,7 @@ app = FastAPI(
         "Taipower DR API：日選（時段型）與保證反應型的 CBL、實際抑低與回饋金計算。\n"
         "日選：/dr/day-select/cbl、/reward、/reduction，以及對應的需求視窗查詢 (cbl/reward/reduction)。\n"
         "保證：/dr/guaranteed/cbl、/reduction、/reward，以及對應的需求視窗查詢 (cbl/reward/reduction)。\n"
-        "即時備轉：/dr/spin-reserve/cbl/required-records、/dr/spin-reserve/cbl，依調度前 5 分鐘平均功率計算 CBL（事件日即為抑低日）。\n"
+        "即時備轉：/dr/spin-reserve/cbl/required-records、/dr/spin-reserve/cbl，依調度前 5 分鐘平均功率計算 CBL（事件日即為抑低日，僅需前 5 分鐘基準資料）。\n"
         "需求視窗端點會回傳需要的 15 分鐘資料區間，方便在事件前後蒐集或檢核資料。"
     ),
 )
