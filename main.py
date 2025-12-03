@@ -517,7 +517,28 @@ def api_spin_reserve_settlement(req: SpinReserveSettlementRequest = Body(..., ex
     tags=["Samples"],
     summary="產生日選型 15 分鐘模擬資料",
 )
-def api_sample_day_select_records(req: SampleDaySelectRequest):
+def api_sample_day_select_records(
+    req: SampleDaySelectRequest = Body(
+        ..., 
+        examples={
+            "default": {
+                "customer_id": "C001",
+                "sample_date": "2099-01-02",
+                "event_start": "16:00:00",
+                "event_end": "20:00:00",
+                "base_kw": 1500,
+                "event_kw": 500,
+                "af_kw": 0,
+                "batch_time_tariff": False,
+                "dr_periods": [{"start": "2099-01", "end": "2099-12"}],
+                "contract_capacity_kw": 120,
+                "committed_capacity_kw": 80,
+                "baseline_days": 5,
+                "assumed_af_kw": 0,
+            }
+        },
+    )
+):
     return generate_day_select_samples(req)
 
 
@@ -527,7 +548,24 @@ def api_sample_day_select_records(req: SampleDaySelectRequest):
     tags=["Samples"],
     summary="產生保證型 15 分鐘模擬資料",
 )
-def api_sample_guaranteed_records(req: SampleGuaranteedRequest):
+def api_sample_guaranteed_records(
+    req: SampleGuaranteedRequest = Body(
+        ...,
+        examples={
+            "default": {
+                "customer_id": "G001",
+                "sample_date": "2099-01-10",
+                "event_start": "16:00:00",
+                "event_end": "18:00:00",
+                "base_kw": 1500,
+                "event_kw": 500,
+                "notification_minutes_before": 60,
+                "contract_capacity_kw": 2000,
+                "committed_capacity_kw": 1200,
+            }
+        },
+    )
+):
     return generate_guaranteed_samples(req)
 
 
@@ -537,5 +575,26 @@ def api_sample_guaranteed_records(req: SampleGuaranteedRequest):
     tags=["Samples"],
     summary="產生即時備轉 1 分鐘模擬資料（含前後緩衝）",
 )
-def api_sample_spin_reserve_records(req: SampleSpinReserveRequest):
+def api_sample_spin_reserve_records(
+    req: SampleSpinReserveRequest = Body(
+        ...,
+        examples={
+            "default": {
+                "customer_id": "SR001",
+                "event_start": "2099-01-03T14:00:00+00:00",
+                "event_end": "2099-01-03T15:00:00+00:00",
+                "base_kw": 1500,
+                "event_kw": 900,
+                "buffer_before_minutes": 10,
+                "buffer_after_minutes": 5,
+                "awarded_capacity_kw": 1200,
+                "bid_capacity_kw": 1500,
+                "efficiency_level": 1,
+                "is_dispatched": True,
+                "capacity_price_per_kw": 0.0,
+                "energy_price_per_kwh": 4.0
+            }
+        },
+    )
+):
     return generate_spin_reserve_samples(req)

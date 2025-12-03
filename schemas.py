@@ -1,7 +1,7 @@
 from datetime import datetime, date, time
 from typing import List, Dict, Optional, Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 # -------------------------
@@ -367,6 +367,27 @@ class SampleDaySelectRequest(BaseModel):
     committed_capacity_kw: float = 80.0
     baseline_days: int = 5
     assumed_af_kw: Optional[float] = None
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "customer_id": "C001",
+                    "sample_date": "2099-01-02",
+                    "event_start": "16:00:00",
+                    "event_end": "20:00:00",
+                    "base_kw": 1500,
+                    "event_kw": 500,
+                    "af_kw": 0,
+                    "batch_time_tariff": False,
+                    "dr_periods": [{"start": "2099-01", "end": "2099-12"}],
+                    "contract_capacity_kw": 120,
+                    "committed_capacity_kw": 80,
+                    "baseline_days": 5,
+                    "assumed_af_kw": 0,
+                }
+            ]
+        }
+    )
 
 
 class SampleGuaranteedRequest(BaseModel):
@@ -379,6 +400,23 @@ class SampleGuaranteedRequest(BaseModel):
     notification_minutes_before: int = Field(60, description="30/60/120")
     contract_capacity_kw: float = 2000.0
     committed_capacity_kw: float = 1200.0
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "customer_id": "G001",
+                    "sample_date": "2099-01-10",
+                    "event_start": "16:00:00",
+                    "event_end": "18:00:00",
+                    "base_kw": 1500,
+                    "event_kw": 500,
+                    "notification_minutes_before": 60,
+                    "contract_capacity_kw": 2000,
+                    "committed_capacity_kw": 1200,
+                }
+            ]
+        }
+    )
 
 
 class SampleSpinReserveRequest(BaseModel):
@@ -395,6 +433,27 @@ class SampleSpinReserveRequest(BaseModel):
     is_dispatched: bool = True
     capacity_price_per_kw: float = 0.0
     energy_price_per_kwh: Optional[float] = None
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "customer_id": "SR001",
+                    "event_start": "2099-01-03T14:00:00+00:00",
+                    "event_end": "2099-01-03T15:00:00+00:00",
+                    "base_kw": 1500,
+                    "event_kw": 900,
+                    "buffer_before_minutes": 10,
+                    "buffer_after_minutes": 5,
+                    "awarded_capacity_kw": 1200,
+                    "bid_capacity_kw": 1500,
+                    "efficiency_level": 1,
+                    "is_dispatched": True,
+                    "capacity_price_per_kw": 0.0,
+                    "energy_price_per_kwh": 4.0,
+                }
+            ]
+        }
+    )
 
 
 class SampleRecordsResponse(BaseModel):
