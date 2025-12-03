@@ -23,6 +23,10 @@ from schemas import (
     GuaranteedRequiredPreResponse,
     GuaranteedRequiredPostResponse,
     GuaranteedSettlementRequiredRequest,
+    SpinReserveCBLRequest,
+    SpinReserveCBLResponse,
+    SpinReserveRequiredRequest,
+    SpinReserveRequiredResponse,
 )
 from services import (
     compute_day_select_cbl,
@@ -39,6 +43,8 @@ from services import (
     build_guaranteed_required_windows,
     build_guaranteed_required_windows_post,
     build_guaranteed_settlement_required,
+    compute_spin_reserve_cbl,
+    build_spin_reserve_required_windows,
 )
 from swagger_examples import (
     DAY_SELECT_CBL_ERROR_EXAMPLE,
@@ -69,6 +75,10 @@ from swagger_examples import (
     GUARANTEED_REQUIRED_POST_RESPONSE_EXAMPLE,
     GUARANTEED_REQUIRED_REQUEST_EXAMPLE_PRE,
     GUARANTEED_REQUIRED_REQUEST_EXAMPLE_POST,
+    SPIN_RESERVE_CBL_RESPONSE_EXAMPLE,
+    SPIN_RESERVE_CBL_REQUEST_EXAMPLE,
+    SPIN_RESERVE_REQUIRED_REQUEST_EXAMPLE,
+    SPIN_RESERVE_REQUIRED_RESPONSE_EXAMPLE,
 )
 
 app = FastAPI(
@@ -78,6 +88,7 @@ app = FastAPI(
         "Taipower DR API：日選（時段型）與保證反應型的 CBL、實際抑低與回饋金計算。\n"
         "日選：/dr/day-select/cbl、/reward、/reduction，以及對應的需求視窗查詢 (cbl/reward/reduction)。\n"
         "保證：/dr/guaranteed/cbl、/reduction、/reward，以及對應的需求視窗查詢 (cbl/reward/reduction)。\n"
+        "即時備轉：/dr/spin-reserve/cbl/required-records、/dr/spin-reserve/cbl，依調度前 5 分鐘平均功率計算 CBL（事件日即為抑低日）。\n"
         "需求視窗端點會回傳需要的 15 分鐘資料區間，方便在事件前後蒐集或檢核資料。"
     ),
 )
@@ -348,4 +359,44 @@ def api_guaranteed_reward(req: GuaranteedRewardRequest = Body(..., examples={"de
         basic_fee_rate=req.basic_fee_rate,
         flow_fee_rate=req.flow_fee_rate,
         dr_periods=req.dr_periods,
+    )
+
+
+@app.post(
+    "/dr/spin-reserve/cbl/required-records",
+    response_model=SpinReserveRequiredResponse,
+    tags=["Spin Reserve: CBL"],
+    responses={
+        200: {
+            "description": "取得需求時間窗（事件前，用於即時備轉 CBL 計算；5 分鐘平均）",
+            "content": {"application/json": {"example": SPIN_RESERVE_REQUIRED_RESPONSE_EXAMPLE}},
+        },
+    },
+)
+def api_spin_reserve_required_records(req: SpinReserveRequiredRequest = Body(..., examples={"default": SPIN_RESERVE_REQUIRED_REQUEST_EXAMPLE})):
+    return build_spin_reserve_required_windows(
+        customer_id=req.customer_id,
+        event_start=req.event_start,
+        event_end=req.event_end,
+    )
+
+
+@app.post(
+    "/dr/spin-reserve/cbl",
+    response_model=SpinReserveCBLResponse,
+    description="依需量反應即時備轉規範：調度指令下達時間點往前 5 分鐘平均功率為 CBL，並可套用約定抑低契約容量計算目標負載。",
+    tags=["Spin Reserve: CBL"],
+    responses={
+        200: {"description": "計算成功", "content": {"application/json": {"example": SPIN_RESERVE_CBL_RESPONSE_EXAMPLE}}},
+        400: {"description": "請求錯誤"},
+    },
+)
+def api_spin_reserve_cbl(req: SpinReserveCBLRequest = Body(..., examples={"default": SPIN_RESERVE_CBL_REQUEST_EXAMPLE})):
+    return compute_spin_reserve_cbl(
+        customer_id=req.customer_id,
+        event_start=req.event_start,
+        event_end=req.event_end,
+        records=req.records,
+        contract_capacity_kw=req.contract_capacity_kw,
+        awarded_capacity_kw=req.awarded_capacity_kw,
     )

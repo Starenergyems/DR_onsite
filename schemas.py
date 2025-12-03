@@ -175,6 +175,7 @@ class GuaranteedEventResponse(BaseModel):
     extra_charge_amount: float
     target_load_kw: float
     detail: Dict[str, Any]
+    method: str
 
 
 class GuaranteedRewardEvent(BaseModel):
@@ -212,6 +213,7 @@ class GuaranteedRewardResponse(BaseModel):
     extra_charge_total_amount: float
     net_reward_amount: float
     event_details: List[GuaranteedEventDetail]
+    method: str
 
 
 class GuaranteedCBLRequest(BaseModel):
@@ -232,6 +234,7 @@ class GuaranteedCBLResponse(BaseModel):
     baseline_kw: float
     target_load_kw: float
     detail: Dict[str, Any]
+    method: str
 
 
 # 新增：需求視窗查詢
@@ -240,6 +243,36 @@ class RequiredWindow(BaseModel):
     start: datetime
     end: datetime
     optional: bool = False
+
+
+class SpinReserveRequiredRequest(BaseModel):
+    customer_id: str
+    event_start: datetime
+    event_end: datetime
+
+
+class SpinReserveRequiredResponse(BaseModel):
+    customer_id: str
+    windows: List[RequiredWindow]
+
+
+class SpinReserveCBLRequest(BaseModel):
+    customer_id: str
+    event_start: datetime
+    event_end: datetime
+    records: List[MeterRecord]
+    contract_capacity_kw: float = Field(..., gt=0, description="經常契約容量 (瓩)")
+    awarded_capacity_kw: float = Field(..., gt=0, description="得標容量 (瓩)")
+
+
+class SpinReserveCBLResponse(BaseModel):
+    customer_id: str
+    event_start: datetime
+    event_end: datetime
+    baseline_kw: float
+    target_load_kw: float
+    method: str
+    detail: Dict[str, Any]
 
 
 class DaySelectRequiredRequest(BaseModel):

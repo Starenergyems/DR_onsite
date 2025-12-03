@@ -23,6 +23,9 @@ from schemas import (
     DaySelectRequiredPostResponse,
     GuaranteedRequiredPreResponse,
     GuaranteedRequiredPostResponse,
+    SpinReserveCBLResponse,
+    SpinReserveRequiredResponse,
+    RequiredWindow,
 )
 
 # -------------------------
@@ -137,12 +140,32 @@ def _ensure_15min_alignment(records: List[MeterRecord], customer_id: str):
             raise HTTPException(400, f"{customer_id} 的時間戳未對齊 15 分鐘：{ts.isoformat()}")
 
 
+def _ensure_step_alignment(records: List[MeterRecord], customer_id: str, step_minutes: int):
+    if step_minutes <= 0:
+        raise HTTPException(400, "step_minutes 必須為正值")
+    for r in records:
+        ts = to_taipei(r.timestamp)
+        if ts.second != 0 or ts.microsecond != 0:
+            raise HTTPException(400, f"{customer_id} 的時間戳未對齊 {step_minutes} 分鐘：{ts.isoformat()}")
+        if ts.minute % step_minutes != 0:
+            raise HTTPException(400, f"{customer_id} 的時間戳未對齊 {step_minutes} 分鐘：{ts.isoformat()}")
+
+
 def validate_customer_records(records: List[MeterRecord], customer_id: str) -> List[MeterRecord]:
     customer_records = get_customer_records(records, customer_id)
     if not customer_records:
         raise HTTPException(404, "沒有此客戶的電表資料")
     _ensure_no_duplicate_timestamps(customer_records, customer_id)
     _ensure_15min_alignment(customer_records, customer_id)
+    return customer_records
+
+
+def validate_customer_records_step(records: List[MeterRecord], customer_id: str, step_minutes: int) -> List[MeterRecord]:
+    customer_records = get_customer_records(records, customer_id)
+    if not customer_records:
+        raise HTTPException(404, "沒有此客戶的電表資料")
+    _ensure_no_duplicate_timestamps(customer_records, customer_id)
+    _ensure_step_alignment(customer_records, customer_id, step_minutes)
     return customer_records
 
 
@@ -233,6 +256,36 @@ def _ensure_full_window(records: List[MeterRecord], start_dt: datetime, end_dt: 
     if missing:
         preview = ", ".join(dt.isoformat() for dt in missing[:5])
         raise HTTPException(400, f"{label} 缺少 {len(missing)} 筆 15 分鐘區間，例: {preview}")
+
+
+def _ensure_full_window_step(
+    records: List[MeterRecord],
+    start_dt: datetime,
+    end_dt: datetime,
+    label: str,
+    step_minutes: int,
+):
+    if start_dt >= end_dt:
+        raise HTTPException(400, f"{label} 時間範圍無效")
+    if (start_dt.second != 0) or (start_dt.microsecond != 0):
+        raise HTTPException(400, f"{label} 起始時間秒數需為 0：{start_dt.isoformat()}")
+    if (end_dt.second != 0) or (end_dt.microsecond != 0):
+        raise HTTPException(400, f"{label} 結束時間秒數需為 0：{end_dt.isoformat()}")
+    step = timedelta(minutes=step_minutes)
+    duration = end_dt - start_dt
+    if duration.total_seconds() % step.total_seconds() != 0:
+        raise HTTPException(400, f"{label} 長度需為 {step_minutes} 分鐘的整數倍")
+    expected_slots = int(duration.total_seconds() // step.total_seconds())
+    ts_set = {to_taipei(r.timestamp) for r in records if start_dt < to_taipei(r.timestamp) <= end_dt}
+    missing: List[datetime] = []
+    cursor = start_dt + step
+    for _ in range(expected_slots):
+        if cursor not in ts_set:
+            missing.append(cursor)
+        cursor += step
+    if missing:
+        preview = ", ".join(dt.isoformat() for dt in missing[:5])
+        raise HTTPException(400, f"{label} 缺少 {len(missing)} 筆 {step_minutes} 分鐘區間，例: {preview}")
 
 
 def _reject_records_outside_windows(records: List[MeterRecord], windows: List[tuple], customer_id: str):
@@ -702,6 +755,7 @@ def compute_guaranteed_event(
         extra_charge_amount=extra_charge_amount,
         target_load_kw=target_load_kw,
         detail=detail,
+        method="guaranteed-reduction-v1",
     )
 
 
@@ -841,6 +895,7 @@ def compute_guaranteed_reward(
             extra_charge_total_amount=0.0,
             net_reward_amount=net_reward,
             event_details=event_details,
+            method="guaranteed-reward-v1",
         )
 
     average_execution = sum(execution_rates) / len(execution_rates)
@@ -869,6 +924,7 @@ def compute_guaranteed_reward(
         extra_charge_total_amount=extra_total,
         net_reward_amount=net_reward,
         event_details=event_details,
+        method="guaranteed-reward-v1",
     )
 
 
@@ -920,6 +976,74 @@ def compute_guaranteed_cbl(
         notification_minutes_before=notification_minutes_before,
         baseline_kw=baseline_kw,
         target_load_kw=target_load_kw,
+        detail=detail,
+        method="guaranteed-cbl-v1",
+    )
+
+
+# -------------------------
+# 即時備轉：基準用電 (CBL)
+# -------------------------
+def build_spin_reserve_required_windows(
+    customer_id: str,
+    event_start: datetime,
+    event_end: datetime,
+) -> SpinReserveRequiredResponse:
+    event_start = to_taipei(event_start)
+    event_end = to_taipei(event_end)
+    if event_end <= event_start:
+        raise HTTPException(400, "event_end 必須晚於 event_start")
+
+    baseline_start = event_start - timedelta(minutes=5)
+    baseline_end = event_start
+    windows = [
+        RequiredWindow(label="baseline_5min", start=baseline_start, end=baseline_end),
+        RequiredWindow(label="event_window", start=event_start, end=event_end, optional=True),
+    ]
+    return SpinReserveRequiredResponse(customer_id=customer_id, windows=windows)
+
+
+def compute_spin_reserve_cbl(
+    customer_id: str,
+    event_start: datetime,
+    event_end: datetime,
+    records: List[MeterRecord],
+    contract_capacity_kw: float,
+    awarded_capacity_kw: float,
+):
+    event_start = to_taipei(event_start)
+    event_end = to_taipei(event_end)
+    if event_end <= event_start:
+        raise HTTPException(400, "event_end 必須晚於 event_start")
+    _validate_guaranteed_capacity(contract_capacity_kw, awarded_capacity_kw)
+
+    baseline_start = event_start - timedelta(minutes=5)
+    baseline_end = event_start
+
+    customer_records = validate_customer_records_step(records, customer_id, step_minutes=1)
+    _ensure_full_window_step(customer_records, baseline_start, baseline_end, "調度前 5 分鐘", step_minutes=1)
+
+    baseline_records = filter_records_between(customer_records, baseline_start, baseline_end)
+    baseline_kw = average_kw(baseline_records) or 0.0
+    target_load_kw = baseline_kw - awarded_capacity_kw
+
+    detail = {
+        "baseline_start": baseline_start.isoformat(),
+        "baseline_end": baseline_end.isoformat(),
+        "baseline_kw": baseline_kw,
+        "awarded_capacity_kw": awarded_capacity_kw,
+        "contract_capacity_kw": contract_capacity_kw,
+        "window_minutes": 5,
+        "step_minutes": 1,
+    }
+
+    return SpinReserveCBLResponse(
+        customer_id=customer_id,
+        event_start=event_start,
+        event_end=event_end,
+        baseline_kw=baseline_kw,
+        target_load_kw=target_load_kw,
+        method="spin-reserve-cbl-v1",
         detail=detail,
     )
 
