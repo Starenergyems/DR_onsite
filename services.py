@@ -829,6 +829,26 @@ def compute_guaranteed_reward(
         raise HTTPException(400, "dr_periods 必填")
     dr_period_ranges = parse_dr_periods(dr_periods)
 
+    if not events:
+        average_execution = 0.0
+        reduction_ratio = 1.0
+        basic_reduction = contract_capacity_kw * basic_fee_rate
+        net_reward = basic_reduction
+        return GuaranteedRewardResponse(
+            customer_id=customer_id,
+            contract_capacity_kw=contract_capacity_kw,
+            average_execution_rate=average_execution,
+            reduction_ratio=reduction_ratio,
+            basic_fee_rate=basic_fee_rate,
+            flow_fee_rate=flow_fee_rate,
+            basic_reduction_amount=basic_reduction,
+            flow_reduction_total_amount=0.0,
+            extra_charge_total_amount=0.0,
+            net_reward_amount=net_reward,
+            event_details=[],
+            method="guaranteed-reward-v1",
+        )
+
     customer_records = validate_customer_records(records, customer_id)
 
     for ev in events:
@@ -887,26 +907,6 @@ def compute_guaranteed_reward(
                 target_load_kw=result.target_load_kw,
                 detail=result.detail,
             )
-        )
-
-    if not event_details:
-        average_execution = 0.0
-        reduction_ratio = 1.0
-        basic_reduction = contract_capacity_kw * basic_fee_rate
-        net_reward = basic_reduction
-        return GuaranteedRewardResponse(
-            customer_id=customer_id,
-            contract_capacity_kw=contract_capacity_kw,
-            average_execution_rate=average_execution,
-            reduction_ratio=reduction_ratio,
-            basic_fee_rate=basic_fee_rate,
-            flow_fee_rate=flow_fee_rate,
-            basic_reduction_amount=basic_reduction,
-            flow_reduction_total_amount=0.0,
-            extra_charge_total_amount=0.0,
-            net_reward_amount=net_reward,
-            event_details=event_details,
-            method="guaranteed-reward-v1",
         )
 
     average_execution = sum(execution_rates) / len(execution_rates)
@@ -1386,7 +1386,7 @@ def build_day_select_settlement_required(
     min_baseline_days: int = 20,
 ) -> DaySelectRequiredPostResponse:
     if not events:
-        raise HTTPException(400, "events 不可為空")
+        return GuaranteedRequiredPostResponse(customer_id=customer_id, required_days=[])
     if not dr_periods:
         raise HTTPException(400, "dr_periods 必填")
 
@@ -1420,7 +1420,7 @@ def build_guaranteed_settlement_required(
     dr_periods: Optional[List[DRPeriod]] = None,
 ) -> GuaranteedRequiredPostResponse:
     if not events:
-        raise HTTPException(400, "events 不可為空")
+        return GuaranteedRequiredPostResponse(customer_id=customer_id, required_days=[])
     if not dr_periods:
         raise HTTPException(400, "dr_periods 必填")
     dr_period_ranges = parse_dr_periods(dr_periods)

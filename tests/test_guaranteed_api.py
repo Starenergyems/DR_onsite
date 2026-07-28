@@ -198,3 +198,39 @@ def test_guaranteed_flow_required_and_settlement(client, event_dates, records_pa
     assert settlement_data["event_details"]
     for ev in settlement_data["event_details"]:
         assert "target_load_kw" in ev
+
+
+def test_guaranteed_no_notification_month_returns_basic_fee_only(client):
+    required_resp = client.post(
+        "/dr/guaranteed/settlement/required-records",
+        json={
+            "customer_id": "G001",
+            "events": [],
+            "dr_periods": [{"start": "2025-07-01", "end": "2025-07-31"}],
+        },
+    )
+    assert required_resp.status_code == 200
+    assert required_resp.json()["required_days"] == []
+
+    settlement_resp = client.post(
+        "/dr/guaranteed/settlement",
+        json={
+            "customer_id": "G001",
+            "notification_minutes_before": 60,
+            "contract_capacity_kw": 2000.0,
+            "committed_capacity_kw": 1200.0,
+            "events": [],
+            "records": [],
+            "dr_periods": [{"start": "2025-07-01", "end": "2025-07-31"}],
+        },
+    )
+    assert settlement_resp.status_code == 200
+    data = settlement_resp.json()
+    assert data["average_execution_rate"] == 0.0
+    assert data["reduction_ratio"] == 1.0
+    assert data["basic_fee_rate"] == 84.0
+    assert data["basic_reduction_amount"] == 168000.0
+    assert data["flow_reduction_total_amount"] == 0.0
+    assert data["extra_charge_total_amount"] == 0.0
+    assert data["net_reward_amount"] == 168000.0
+    assert data["event_details"] == []
