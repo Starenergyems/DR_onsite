@@ -801,6 +801,18 @@ def compute_guaranteed_reduction_simple(
     result.detail["extra_charge_amount"] = 0.0
     return result
 
+def _sum_prior_basic_reduction_amounts(values: Optional[List[float]]) -> Optional[float]:
+    if values is None:
+        return None
+    total = 0.0
+    for value in values:
+        amount = float(value)
+        if amount < 0:
+            raise HTTPException(400, "prior_basic_reduction_amounts 不可包含負數")
+        total += amount
+    return total
+
+
 def compute_guaranteed_reward(
     customer_id: str,
     notification_minutes_before: int,
@@ -810,6 +822,7 @@ def compute_guaranteed_reward(
     records: List[MeterRecord],
     basic_fee_rate: Optional[float] = None,
     flow_fee_rate: Optional[float] = None,
+    prior_basic_reduction_amounts: Optional[List[float]] = None,
     dr_periods: Optional[List[DRPeriod]] = None,
 ):
     if notification_minutes_before not in (30, 60, 120):
@@ -824,6 +837,7 @@ def compute_guaranteed_reward(
             basic_fee_rate = 78.0
     if flow_fee_rate is None:
         flow_fee_rate = 12.0
+    prior_basic_total = _sum_prior_basic_reduction_amounts(prior_basic_reduction_amounts)
 
     if not dr_periods:
         raise HTTPException(400, "dr_periods 必填")
@@ -833,6 +847,7 @@ def compute_guaranteed_reward(
         average_execution = 0.0
         reduction_ratio = 1.0
         basic_reduction = contract_capacity_kw * basic_fee_rate
+        extra_charge_cap = prior_basic_total if prior_basic_total is not None else basic_reduction
         net_reward = basic_reduction
         return GuaranteedRewardResponse(
             customer_id=customer_id,
@@ -844,6 +859,10 @@ def compute_guaranteed_reward(
             basic_reduction_amount=basic_reduction,
             flow_reduction_total_amount=0.0,
             extra_charge_total_amount=0.0,
+            extra_charge_uncapped_total_amount=0.0,
+            extra_charge_cap_amount=extra_charge_cap,
+            extra_charge_cap_applied=False,
+            prior_basic_reduction_history_total_amount=prior_basic_total or 0.0,
             net_reward_amount=net_reward,
             event_details=[],
             method="guaranteed-reward-v1",
@@ -921,6 +940,10 @@ def compute_guaranteed_reward(
         reduction_ratio = 1.0
 
     basic_reduction = contract_capacity_kw * basic_fee_rate * reduction_ratio
+    extra_uncapped_total = extra_total
+    extra_charge_cap = prior_basic_total if prior_basic_total is not None else basic_reduction
+    extra_total = min(extra_uncapped_total, extra_charge_cap)
+    extra_cap_applied = extra_total < extra_uncapped_total
     net_reward = basic_reduction + flow_total - extra_total
 
     return GuaranteedRewardResponse(
@@ -933,6 +956,10 @@ def compute_guaranteed_reward(
         basic_reduction_amount=basic_reduction,
         flow_reduction_total_amount=flow_total,
         extra_charge_total_amount=extra_total,
+        extra_charge_uncapped_total_amount=extra_uncapped_total,
+        extra_charge_cap_amount=extra_charge_cap,
+        extra_charge_cap_applied=extra_cap_applied,
+        prior_basic_reduction_history_total_amount=prior_basic_total or 0.0,
         net_reward_amount=net_reward,
         event_details=event_details,
         method="guaranteed-reward-v1",

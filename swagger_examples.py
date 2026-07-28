@@ -357,6 +357,7 @@ def _build_guaranteed_reward_response():
         committed_capacity_kw=req.committed_capacity_kw,
         basic_fee_rate=req.basic_fee_rate,
         flow_fee_rate=req.flow_fee_rate,
+        prior_basic_reduction_amounts=req.prior_basic_reduction_amounts,
     )
     return resp.model_dump()
 

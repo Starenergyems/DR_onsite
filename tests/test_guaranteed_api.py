@@ -234,3 +234,38 @@ def test_guaranteed_no_notification_month_returns_basic_fee_only(client):
     assert data["extra_charge_total_amount"] == 0.0
     assert data["net_reward_amount"] == 168000.0
     assert data["event_details"] == []
+
+
+def test_guaranteed_monthly_extra_charge_is_capped_by_prior_basic_reduction_history(client):
+    event_day = date(2025, 7, 8)
+    event_start = TZ.localize(datetime.combine(event_day, time(16, 0)))
+    event_end = TZ.localize(datetime.combine(event_day, time(18, 0)))
+    records = _generate_full_day_records([event_day], event_hours=(time(0, 0), time(0, 0)))
+    payload_records = [{"customer_id": r.customer_id, "timestamp": r.timestamp.isoformat(), "kw": r.kw} for r in records]
+
+    response = client.post(
+        "/dr/guaranteed/settlement",
+        json={
+            "customer_id": "G001",
+            "notification_minutes_before": 60,
+            "contract_capacity_kw": 2000.0,
+            "committed_capacity_kw": 1200.0,
+            "events": [
+                {"customer_id": "G001", "event_start": event_start.isoformat(), "event_end": event_end.isoformat()},
+            ],
+            "records": payload_records,
+            "prior_basic_reduction_amounts": [10000.0, 20000.0],
+            "dr_periods": [{"start": "2025-07-01", "end": "2025-07-31"}],
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["average_execution_rate"] == 0.0
+    assert data["basic_reduction_amount"] == 0.0
+    assert data["extra_charge_uncapped_total_amount"] == 57600.0
+    assert data["prior_basic_reduction_history_total_amount"] == 30000.0
+    assert data["extra_charge_cap_amount"] == 30000.0
+    assert data["extra_charge_cap_applied"] is True
+    assert data["extra_charge_total_amount"] == 30000.0
+    assert data["net_reward_amount"] == -30000.0

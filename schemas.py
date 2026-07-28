@@ -198,6 +198,9 @@ class GuaranteedRewardRequest(BaseModel):
     records: List[MeterRecord]
     basic_fee_rate: Optional[float] = None
     flow_fee_rate: Optional[float] = None
+    prior_basic_reduction_amounts: Optional[List[float]] = Field(
+        None, description="近 11 個月保證反應型基本電費扣減金額；提供時用於違約加收總額上限"
+    )
     dr_periods: List[DRPeriod] = Field(..., description="與台電簽訂的抑低期間清單，起訖含當日")
 
 
@@ -211,6 +214,10 @@ class GuaranteedRewardResponse(BaseModel):
     basic_reduction_amount: float
     flow_reduction_total_amount: float
     extra_charge_total_amount: float
+    extra_charge_uncapped_total_amount: float
+    extra_charge_cap_amount: float
+    extra_charge_cap_applied: bool
+    prior_basic_reduction_history_total_amount: float
     net_reward_amount: float
     event_details: List[GuaranteedEventDetail]
     method: str

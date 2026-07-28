@@ -385,6 +385,7 @@ def api_guaranteed_reward(req: GuaranteedRewardRequest = Body(..., examples={"de
         records=req.records,
         basic_fee_rate=req.basic_fee_rate,
         flow_fee_rate=req.flow_fee_rate,
+        prior_basic_reduction_amounts=req.prior_basic_reduction_amounts,
         dr_periods=req.dr_periods,
     )
 
